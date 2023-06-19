@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = "0.0.0"
+VERSION = "0.0.1"
 
 
 def read_requirements():
@@ -16,7 +16,7 @@ def get_long_description():
 
 setup(
     name="lmt",
-    description="The main CLI tool within the LLM-Toolbox, designed to enable seamless communication with ChatGPT. Customize your experience with tailored commands for various tasks, or use `lmt` standalone for direct interaction with ChatGPT.",
+    description="The main CLI tool within the LLM-Toolbox, designed to enable seamless communication with ChatGPT from your terminal. You can customize your experience by creating templates and using them to generate messages.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
@@ -32,6 +32,7 @@ setup(
     install_requires=read_requirements(),
     entry_points={
         "console_scripts": [
+            "lmt=lmt.cli:lmt",
         ]
     },
     python_requires=">=3.8",
