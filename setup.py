@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 
 
 def read_requirements():
@@ -32,7 +32,7 @@ setup(
     install_requires=read_requirements(),
     entry_points={
         "console_scripts": [
-            "lmt=lmt.cli:lmt",
+            "lmt=lmt_cli.cli:lmt",
         ]
     },
     python_requires=">=3.8",

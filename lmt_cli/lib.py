@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 
-from lmt import gpt_integration as openai_utils
+from lmt_cli import gpt_integration as openai_utils
 
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
