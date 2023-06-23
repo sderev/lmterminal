@@ -139,8 +139,7 @@ def prompt(
                 click.style(
                     (
                         "You can paste your prompt below. Press <Enter> to"
-                        " validate.\nOnce you've done, press Ctrl+D (or Ctrl+Z on"
-                        " Windows) to send it."
+                        " validate.\nOnce you've done, press Ctrl+D to send it."
                     ),
                     fg="yellow",
                 )
@@ -312,4 +311,3 @@ def rename_template(template):
             click.style("Error: ", fg="red")
             + f"The template '{template}' does not exist."
         )
-
