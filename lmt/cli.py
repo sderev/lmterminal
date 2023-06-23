@@ -42,7 +42,7 @@ def validate_temperature(ctx, param, value):
 
 
 @click.group()
-@click.version_option()
+@click.version_option(package_name="lmt-cli")
 def lmt():
     """
     Talk to ChatGPT.
