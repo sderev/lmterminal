@@ -87,7 +87,7 @@ def update_from_template(template_content, key, value):
     if existing_value is None:
         template_content[key] = existing_value = ""
 
-    return template_content.get(key, value) + (value or "")
+    return existing_value.rstrip() + (value or "")
 
 
 def add_emoji(system: str) -> str:
@@ -98,12 +98,14 @@ def add_emoji(system: str) -> str:
         "Add plenty of emojis as a colorful way to convey emotions. However, don't"
         " mention it."
     )
+    system = system.rstrip()
+
     if system == "":
         return emoji_message
-    elif system[-1] == ".":
-        return system + " " + emoji_message
-    else:
-        return system.rstrip() + ". " + emoji_message
+
+    if not system.endswith("."):
+        system += "."
+    return system + " " + emoji_message
 
 
 def generate_response(
