@@ -139,7 +139,7 @@ def prompt(
                 click.style(
                     (
                         "You can paste your prompt below. Press <Enter> to"
-                        " validate.\nOnce you've done, press Ctrl+D to send it."
+                        " skip a line.\nOnce you've done, press Ctrl+D to send it."
                     ),
                     fg="yellow",
                 )
