@@ -98,12 +98,14 @@ def add_emoji(system: str) -> str:
         "Add plenty of emojis as a colorful way to convey emotions. However, don't"
         " mention it."
     )
+    system = system.rstrip()
+
     if system == "":
         return emoji_message
-    elif system[-1] == ".":
-        return system + " " + emoji_message
-    else:
-        return system.rstrip() + ". " + emoji_message
+
+    if not system.endswith("."):
+        system += "."
+    return system + " " + emoji_message
 
 
 def generate_response(
