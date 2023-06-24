@@ -53,7 +53,7 @@ def prepare_and_generate_response(
 
     stream = False if no_stream else True
 
-    generate_response(
+    return generate_response(
         debug,
         emoji,
         model,
