@@ -46,7 +46,7 @@ Furthermore, `lmt` enables you to design and use your own templates, broadening 
 ### `pip`
 
 ```bash
-python3 -m pip install llm-toolbox
+python3 -m pip install lmt-cli
 ```
 
 ### `pipx`, the Easy Way
@@ -70,7 +70,7 @@ To use these tools, I recommend that you first install [pipx](https://pypa.githu
 To install the latest stable version of `lmt`, simply run this command:
 
 ```bash
-pipx install lmt
+pipx install lmt-cli
 ```
 
 If you want to follow the `main` branch:
@@ -82,7 +82,7 @@ pipx install git+https://github.com/sderev/lmt
 To upgrade it:
 
 ```bash
-pipx upgrade lmt
+pipx upgrade lmt-cli
 ```
 
 ### Cloning the `lmt` Repository
