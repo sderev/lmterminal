@@ -1,6 +1,6 @@
 # LMT: The CLI Tool for ChatGPT
 
-`lmt` is the primary tool of the [LLM-Toolbox](https://github.com/sderev/llm-toolbox) and a versatile command-line interface tool that allows you to interact directly with OpenAI's ChatGPT models. With `lmt`, you can bring the power of artificial intelligence to your terminal, utilizing.
+`lmt` is the primary tool of the [LLM-Toolbox](https://github.com/sderev/llm-toolbox) and a versatile command-line interface tool that allows you to interact directly with OpenAI's ChatGPT models. With `lmt`, you can bring the power of artificial intelligence to your terminal.
 
 As a crucial component of the LLM-Toolbox, `lmt` exemplifies the toolbox's dedication to providing powerful, flexible tools that harness the capabilities of language models. It allows access to all available models of ChatGPT, including gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, and gpt-4-32k.
 
@@ -39,8 +39,6 @@ Furthermore, `lmt` enables you to design and use your own templates, broadening 
 * **Custom Templates**: Design and use your personalized toolbox of templates to streamline and automate your workflow.
 * **Read From `stdin`**: Using pipes, `lmt` can read from `stdin`, enabling you to use file content as a prompt.
 * **Command-Line & Template Requests**: `lmt` offers the flexibility of making requests directly from the command line or using pre-designed templates.
-
-**TODO: Video Demo**: A video demo showcasing `lmt`'s features will be added here.
 
 ## Installation
 
