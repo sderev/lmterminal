@@ -256,7 +256,7 @@ In this example, `lmt` takes the content of `your_file.py` as the input for the 
 You can use output redirections with the tools. For instance:
 
 ```bash
-lmt prompt "List 5 Wikipedia articles" > wiki_articles.md
+lmt prompt "List 5 Wikipedia articles" --raw > wiki_articles.md
 ```
 
 ## License
