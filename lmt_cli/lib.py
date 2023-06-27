@@ -129,7 +129,7 @@ def generate_response(
         def update_markdown_stream(chunk: str) -> None:
             nonlocal markdown_stream
             markdown_stream += chunk
-            if raw or not sys.stdout.isatty():
+            if raw:
                 print("".join(chunk), end="")
             else:
                 rich_markdown_stream = Markdown(markdown_stream)
