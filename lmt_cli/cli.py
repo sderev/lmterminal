@@ -190,7 +190,7 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates = [template.stem for template in TEMPLATES_DIR.iterdir()]
+    templates = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
     if templates:
         click.echo("\n".join(templates))
 
@@ -215,7 +215,17 @@ def edit(template):
     """
     template_file = TEMPLATES_DIR / f"{template}.yaml"
     if template_file.exists():
+        original_file_content = template_file.read_text()
         click.edit(filename=template_file)
+
+        if original_file_content == template_file.read_text():
+            click.echo("No changes were made.")
+        else:
+            click.echo(
+                f"{click.style('Success!', fg='green')} Template"
+                f" {click.style(template, fg='green')} was updated."
+            )
+
     else:
         click.echo(
             click.style("Error: ", fg="red")
