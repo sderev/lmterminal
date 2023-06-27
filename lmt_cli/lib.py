@@ -303,7 +303,7 @@ TEMPLATES_DIR = get_templates_dir()
 
 DEFAULT_TEMPLATE_CONTENT = """# Documentation: https://github.com/sderev/lmt
 
-# You can leave either of the fields empty. 
+# You may leave either of the fields empty. 
 
 
 # Here, you can instruct how you want ChatGPT to behave.
