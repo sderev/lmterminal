@@ -250,6 +250,14 @@ cat your_file.py | lmt prompt \
 
 In this example, `lmt` takes the content of `your_file.py` as the input for the `prompt` command. With the `gpt-4` model selected via `-m 4`, the system is instructed to respond in the style of a fast-talking wiseguy from a 1940s gangster movie, as specified in the `--system` option. The `--emoji` flag indicates that the response may include emojis for added expressiveness.
 
+### Output Redirection
+
+You can use output redirections with the tools. For instance:
+
+```bash
+lmt prompt "List 5 Wikipedia articles" > wiki_articles.md
+```
+
 ## License
 
 `lmt` is licensed under Apache License version 2.0.
