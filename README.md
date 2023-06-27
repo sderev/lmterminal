@@ -6,6 +6,8 @@ As a crucial component of the LLM-Toolbox, `lmt` exemplifies the toolbox's dedic
 
 Furthermore, `lmt` enables you to design and use your own templates, broadening its potential applications. The ability to read from `stdin` using pipes also allows for convenient integration with other command-line tools.
 
+If you find this project beneficial, consider expression your support by giving it a star ⭐😊.
+
 ![cioran](https://github.com/sderev/lmt/assets/24412384/2e79cc97-903a-46ee-8a48-c5e42dbf7a63)
 
 <!-- TOC -->
