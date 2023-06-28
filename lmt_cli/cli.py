@@ -1,4 +1,5 @@
 import filecmp
+import os
 import shutil
 import sys
 
@@ -321,3 +322,26 @@ def rename_template(template):
             click.style("Error: ", fg="red")
             + f"The template '{template}' does not exist."
         )
+
+
+@lmt.group()
+def key():
+    """
+    Manage the OpenAI API key.
+    """
+    pass
+
+
+@key.command(name="edit")
+def edit_api_key():
+    """
+    Edit the OpenAI API key.
+    """
+    edit_key()
+
+@key.command(name="set")
+def set_api_key():
+    """
+    Set the OpenAI API key.
+    """
+    set_key()

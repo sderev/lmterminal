@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -123,6 +124,18 @@ def generate_response(
     """
     Generates a response from a ChatGPT.
     """
+    if os.getenv("OPENAI_API_KEY") is None:
+        if not get_api_key():
+            click.echo(
+                f"{click.style('Error:', fg='red')} You need to set your OpenAI API"
+                " key."
+            )
+            click.echo("You can do so by running:", nl=False)
+            click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
+            sys.exit(1)
+        else:
+            os.environ["OPENAI_API_KEY"] = get_api_key()
+
     markdown_stream = ""
     with Live(Markdown(markdown_stream), refresh_per_second=25) as live:
 
@@ -154,6 +167,7 @@ def generate_response(
             print(f"{RED}Error: {error}{RESET}")
 
         else:
+            del os.environ["OPENAI_API_KEY"]
             return content, response_time, response
 
 
@@ -297,6 +311,66 @@ def handle_rate_limit_error():
         " here:\nhttps://platform.openai.com/account/billing/limits"
     )
     click.echo()
+
+
+def get_api_key() -> str:
+    """
+    Return the OpenAI API key.
+    """
+    key_file_path = get_api_key_path()
+    with open(key_file_path, "r") as key_file:
+        return key_file.read().strip()
+
+
+def get_api_key_path() -> Path:
+    """
+    Return the path to the keys file.
+    """
+    key_file_path = Path.home() / ".config" / "lmt" / "key.env"
+    if not key_file_path.exists():
+        key_file_path.parent.mkdir(parents=True, exist_ok=True)
+        key_file_path.touch()
+    return key_file_path
+
+
+def set_key() -> None:
+    """
+    Add the OpenAI API key.
+    """
+    key_path = get_api_key_path()
+    key = get_api_key()
+    if key:
+        click.echo(click.style("Error: ", fg="red") + f"API key already exists.")
+        click.echo(f"Use `{click.style(f'lmt key edit', fg='blue')}` to edit it.")
+        return
+
+    key = click.prompt("Your OpenAI API key")
+    with open(key_path, "w") as key_file:
+        key_file.write(key)
+    click.echo(f"{click.style('Success!', fg='green')} API key added.")
+    click.echo(f"\nThe API key is stored in {key_path}.")
+
+
+def edit_key() -> None:
+    """
+    Edit the OpenAI API key.
+    """
+    key_file_path = get_api_key_path()
+    key = get_api_key()
+    if not key:
+        click.echo(click.style("Error: ", fg="red") + f"API key does not exist.")
+        click.echo("You will now be prompted to add it.\n")
+        set_key()
+        return
+
+    original_key = key
+    click.edit(filename=key_file_path)
+    key = get_api_key()
+    if original_key == key:
+        click.echo("No changes were made.")
+    else:
+        click.echo(f"{click.style('Success!', fg='green')} API key was updated.")
+    click.echo(f"\nThe API key is stored in {key_file_path}.")
 
 
 TEMPLATES_DIR = get_templates_dir()
