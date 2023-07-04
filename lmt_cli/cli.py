@@ -131,9 +131,7 @@ def prompt(
     Example: lmt prompt "Say hello" --emoji
     """
     if not prompt_input:
-        if template:
-            pass
-        elif not sys.stdin.isatty():
+        if not sys.stdin.isatty():
             prompt_input = sys.stdin.read()
         elif sys.stdin.isatty():
             click.echo(
