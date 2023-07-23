@@ -156,10 +156,6 @@ In this case, the model will generate a response based on its understanding of C
 
 ### Switching Models
 
-Sure, here's a reviewed and slightly enhanced version of your text:
-
-### Switching Models
-
 Switching between different models is a breeze with `lmt`. Use the `-m` flag followed by the alias of the model you wish to employ.
 
 ```bash
@@ -179,11 +175,11 @@ Below is a table outlining available model aliases for your convenience:
 | 4-32k | gpt-4-32k |
 | gpt4-32k | gpt-4-32k |
 
-For instance, if you want to use the `gpt-4-32k` model, simply include `-m 4-32k` in your command.
+For instance, if you want to use the `gpt-4` model, simply include `-m 4` in your command.
 
 ### Template Utilization
 
-Templates, stored in `~/.config/lmt/templates` and written in YAML, can be effortlessly generated using the following command:
+Templates, stored in `~/.config/lmt/templates` and written in YAML, can be generated using the following command:
 
 ```bash
 lmt templates add
@@ -200,6 +196,8 @@ lmt templates --help
 ```bash
 lmt prompt "Tell me how AI will change the world." --template cioran
 ```
+
+You can also use the shorter version: `-t cioran`.
 
 ### Emoji Integration
 
@@ -251,4 +249,3 @@ While `lmt` already boasts a wide array of features, development is ongoing. Exp
 ___
 
 <https://github.com/sderev/lmt>
-
