@@ -82,6 +82,7 @@ def lmt():
 )
 @click.option(
     "--system",
+    "-s",
     help="The system to use for the requests.",
 )
 @click.option("--emoji", is_flag=True, help="Add emotions and emojis.")
