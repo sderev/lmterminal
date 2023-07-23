@@ -1,12 +1,12 @@
 # LMT: The CLI Tool for ChatGPT
 
-`lmt` is the primary tool of the [LLM-Toolbox](https://github.com/sderev/llm-toolbox) and a versatile command-line interface tool that allows you to interact directly with OpenAI's ChatGPT models. With `lmt`, you can bring the power of artificial intelligence to your terminal.
+`lmt` is the primary tool of the [LLM-Toolbox](https://github.com/sderev/llm-toolbox) and a versatile CLI interface tool that allows you to interact directly with OpenAI's ChatGPT models.
 
-As a crucial component of the LLM-Toolbox, `lmt` exemplifies the toolbox's dedication to providing powerful, flexible tools that harness the capabilities of language models. It allows access to all available models of ChatGPT, including gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, and gpt-4-32k.
+As a crucial component of the LLM-Toolbox, `lmt` exemplifies the toolbox's dedication to provide powerful and flexible tools that harness the capabilities of language models. It allows access to all available models of ChatGPT, including gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, and gpt-4-32k.
 
 Furthermore, `lmt` enables you to design and use your own templates, broadening its potential applications. The ability to read from `stdin` using pipes also allows for convenient integration with other command-line tools.
 
-If you find this project beneficial, consider expression your support by giving it a star ⭐😊.
+If you find this project beneficial, consider expressing your support by giving it a star ⭐😊.
 
 ![cioran](https://github.com/sderev/lmt/assets/24412384/2e79cc97-903a-46ee-8a48-c5e42dbf7a63)
 
@@ -41,6 +41,7 @@ If you find this project beneficial, consider expression your support by giving 
 * **Custom Templates**: Design and use your personalized toolbox of templates to streamline and automate your workflow.
 * **Read From `stdin`**: Using pipes, `lmt` can read from `stdin`, enabling you to use file content as a prompt.
 * **Command-Line & Template Requests**: `lmt` offers the flexibility of making requests directly from the command line or using pre-designed templates.
+* **Vim Integration**: As a CLI tool, it can easily be integrated in Vim as a filter command. 
 
 ## Installation
 
