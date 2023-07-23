@@ -5,6 +5,7 @@ import sys
 import click
 
 from .lib import *
+from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
     "chatgpt": "gpt-3.5-turbo",

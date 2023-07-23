@@ -1,8 +1,12 @@
 import os
+import sys
 import time
 
 import openai
 import tiktoken
+
+BLUE = "\033[34m"
+RESET = "\033[0m"
 
 
 def format_prompt(system_content, user_content):
@@ -170,3 +174,56 @@ def estimate_prompt_cost(message):
     }
 
     return {model: estimated_cost(num_tokens, price) for model, price in prices.items()}
+
+
+def handle_rate_limit_error():
+    """
+    Provides guidance on how to handle a rate limit error.
+    """
+    sys.stderr.write("\n")
+    sys.stderr.write(
+        BLUE +
+        (
+            "You might not have set a usage rate limit in your"
+            " OpenAI account settings. "
+        ) +
+        RESET + "\n"
+    )
+    sys.stderr.write(
+        (
+            "If that's the case, you can set it"
+            " here:\nhttps://platform.openai.com/account/billing/limits"
+        ) + "\n"
+    )
+
+    sys.stderr.write("\n")
+    sys.stderr.write(
+        BLUE +
+        "If you have set a usage rate limit, please try the following steps:" +
+        RESET + "\n"
+    )
+    sys.stderr.write("- Wait a few seconds before trying again.\n")
+    sys.stderr.write("\n")
+    sys.stderr.write(
+        (
+            "- Reduce your request rate or batch tokens. You can read the"
+            " OpenAI rate limits"
+            " here:\nhttps://platform.openai.com/account/rate-limits"
+        ) + "\n"
+    )
+    sys.stderr.write("\n")
+    sys.stderr.write(
+        (
+            "- If you are using the free plan, you can upgrade to the paid"
+            " plan"
+            " here:\nhttps://platform.openai.com/account/billing/overview"
+        ) + "\n"
+    )
+    sys.stderr.write("\n")
+    sys.stderr.write(
+        (
+            "- If you are using the paid plan, you can increase your usage"
+            " rate limit"
+            " here:\nhttps://platform.openai.com/account/billing/limits"
+        ) + "\n"
+    )
