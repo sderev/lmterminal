@@ -130,23 +130,7 @@ def generate_response(
             sys.exit(1)
 
         except openai.error.AuthenticationError:
-            click.echo(
-                (
-                    f"{RED}Error:{RESET} Your API key or token was invalid, expired, or"
-                    " revoked. Check your API key or token and make sure it is correct"
-                    " and active."
-                ),
-                err=True,
-            )
-            click.echo(
-                (
-                    "\nYou may need to generate a new API key from your account"
-                    " dashboard: https://platform.openai.com/account/api-keys"
-                ),
-                err=True,
-            )
-            click.echo("You can set your API key by running:", nl=False, err=True)
-            click.echo(f"  {click.style('lmt key set', fg='blue')}", err=True)
+            openai_utils.handle_authentication_error()
             sys.exit(1)
 
         except Exception as error:
