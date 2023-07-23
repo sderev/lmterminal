@@ -18,8 +18,8 @@ VALID_MODELS = {
 }
 
 
-# The two first parameters are required by Click for a callback.
-def validate_model_name(ctx, param, value):
+# The first two parameters are required by Click for a callback.
+def validate_model_name(ctx, param, value):  # pylint: disable=unused-argument
     """
     Validates the model name parameter.
     """
@@ -40,8 +40,8 @@ def validate_model_name(ctx, param, value):
     )
 
 
-# The two first parameters are required by Click for a callback.
-def validate_temperature(ctx, param, value):
+# The first two parameters are required by Click for a callback.
+def validate_temperature(ctx, param, value):  # pylint: disable=unused-argument
     """
     Validates the temperature parameter.
     """
