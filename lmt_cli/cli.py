@@ -165,6 +165,7 @@ def prompt(
             ),
         )
 
+    click.echo()
     prepare_and_generate_response(
         system,
         template,
@@ -177,6 +178,7 @@ def prompt(
         raw,
         debug,
     )
+    click.echo()
 
 
 @lmt.group()
