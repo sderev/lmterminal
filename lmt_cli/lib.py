@@ -5,7 +5,6 @@ from pathlib import Path
 import click
 import openai
 import yaml
-from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 
@@ -52,19 +51,14 @@ def prepare_and_generate_response(
     if tokens:
         display_tokens_count_and_cost(prompt, model)
 
-    stream = False if no_stream else True
+    stream = not no_stream
 
-    return generate_response(
-        debug,
-        emoji,
+    content, response_time, response = generate_response(
         model,
         prompt,
         raw,
         stream,
-        system,
         temperature,
-        template,
-        tokens,
     )
 
 
@@ -75,9 +69,9 @@ def handle_template(template: str, system: str, prompt_input: str, model: str) -
     template_content = get_template_content(template)
     system = update_from_template(template_content, "system", system)
     prompt_input = update_from_template(template_content, "user", prompt_input)
-    model = template_content.get("model", model) or model
+    model_template = template_content.get("model", model) or model
 
-    return system, prompt_input, model
+    return system, prompt_input, model_template
 
 
 def update_from_template(template_content, key, value):
@@ -110,35 +104,28 @@ def add_emoji(system: str) -> str:
 
 
 def generate_response(
-    debug: bool = False,
-    emoji: bool = False,
     model: str = "gpt-3.5-turbo",
     prompt: str = None,
     raw: bool = False,
     stream: bool = True,
-    system: str = None,
     temperature: float = 1,
-    template: str = None,
-    tokens: bool = False,
 ):
     """
     Generates a response from a ChatGPT.
     """
-    if os.getenv("OPENAI_API_KEY") is None:
-        if not get_api_key():
-            click.echo(
-                f"{click.style('Error:', fg='red')} You need to set your OpenAI API"
-                " key."
-            )
-            click.echo("You can do so by running:", nl=False)
-            click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
-            sys.exit(1)
-        else:
-            os.environ["OPENAI_API_KEY"] = get_api_key()
+    openai.api_key = get_api_key()
+
+    if not openai.api_key:
+        click.echo(
+            f"{click.style('Error:', fg='red')} You need to set your OpenAI API key."
+        )
+        click.echo("You can do so by running:", nl=False)
+        click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
+        sys.exit(1)
 
     markdown_stream = ""
     with Live(Markdown(markdown_stream), refresh_per_second=25) as live:
-
+        # Allows rich markdown formatted stream in real time
         def update_markdown_stream(chunk: str) -> None:
             nonlocal markdown_stream
             markdown_stream += chunk
@@ -150,7 +137,8 @@ def generate_response(
 
         try:
             content, response_time, response = openai_utils.chatgpt_request(
-                prompt,
+                api_key=openai.api_key,
+                prompt=prompt,
                 model=model,
                 stream=stream,
                 temperature=temperature,
@@ -160,14 +148,35 @@ def generate_response(
                 print(content)
 
         except openai.error.RateLimitError as error:
-            print(f"{RED}Error: {error}{RESET}")
+            click.echo(f"{RED}Error:{RESET} {error}", err=True)
             handle_rate_limit_error()
+            sys.exit(1)
+
+        except openai.error.AuthenticationError as error:
+            click.echo(
+                (
+                    f"{RED}Error:{RESET} Your API key or token was invalid, expired, or"
+                    " revoked. Check your API key or token and make sure it is correct"
+                    " and active."
+                ),
+                err=True,
+            )
+            click.echo(
+                (
+                    "\nYou may need to generate a new API key from your account"
+                    " dashboard: https://platform.openai.com/account/api-keys"
+                ),
+                err=True,
+            )
+            click.echo("You can set your API key by running:", nl=False, err=True)
+            click.echo(f"  {click.style('lmt key set', fg='blue')}", err=True)
+            sys.exit(1)
 
         except Exception as error:
-            print(f"{RED}Error: {error}{RESET}")
+            click.echo(f"{RED}Error:{RESET} {error}", err=True)
+            sys.exit(1)
 
         else:
-            del os.environ["OPENAI_API_KEY"]
             return content, response_time, response
 
 
@@ -178,7 +187,7 @@ def get_template_content(template):
     template_file = TEMPLATES_DIR / f"{template}.yaml"
 
     try:
-        with open(template_file, "rt") as file:
+        with open(template_file, "rt", encoding="UTF-8") as file:
             template_content = yaml.safe_load(file)
     except FileNotFoundError:
         click.echo(
@@ -209,7 +218,7 @@ def get_default_template_file_path() -> Path:
     default_template_file = default_dir / "template.yaml"
     if not default_template_file.exists():
         click.echo("The default template does not exist. Creating it...")
-        with open(default_template_file, "w") as file:
+        with open(default_template_file, "w", encoding="UTF-8") as file:
             file.write(DEFAULT_TEMPLATE_CONTENT)
 
     return default_template_file
@@ -269,7 +278,7 @@ def handle_rate_limit_error():
     """
     Provides guidance on how to handle a rate limit error.
     """
-    click.echo()
+    click.echo(err=True)
     click.echo(
         click.style(
             (
@@ -277,40 +286,54 @@ def handle_rate_limit_error():
                 " OpenAI account settings. "
             ),
             fg="blue",
-        )
+        ),
+        err=True,
     )
     click.echo(
-        "If that's the case, you can set it"
-        " here:\nhttps://platform.openai.com/account/billing/limits"
+        (
+            "If that's the case, you can set it"
+            " here:\nhttps://platform.openai.com/account/billing/limits"
+        ),
+        err=True,
     )
 
-    click.echo()
+    click.echo(err=True)
     click.echo(
         click.style(
             "If you have set a usage rate limit, please try the following steps:",
             fg="blue",
-        )
+        ),
+        err=True,
     )
-    click.echo("- Wait a few seconds before trying again.")
+    click.echo("- Wait a few seconds before trying again.", err=True)
+    click.echo(err=True)
+    click.echo(
+        (
+            "- Reduce your request rate or batch tokens. You can read the"
+            " OpenAI rate limits"
+            " here:\nhttps://platform.openai.com/account/rate-limits"
+        ),
+        err=True,
+    )
+    click.echo(err=True)
+    click.echo(
+        (
+            "- If you are using the free plan, you can upgrade to the paid"
+            " plan"
+            " here:\nhttps://platform.openai.com/account/billing/overview"
+        ),
+        err=True,
+    )
     click.echo()
     click.echo(
-        "- Reduce your request rate or batch tokens. You can read the"
-        " OpenAI rate limits"
-        " here:\nhttps://platform.openai.com/account/rate-limits"
+        (
+            "- If you are using the paid plan, you can increase your usage"
+            " rate limit"
+            " here:\nhttps://platform.openai.com/account/billing/limits"
+        ),
+        err=True,
     )
-    click.echo()
-    click.echo(
-        "- If you are using the free plan, you can upgrade to the paid"
-        " plan"
-        " here:\nhttps://platform.openai.com/account/billing/overview"
-    )
-    click.echo()
-    click.echo(
-        "- If you are using the paid plan, you can increase your usage"
-        " rate limit"
-        " here:\nhttps://platform.openai.com/account/billing/limits"
-    )
-    click.echo()
+    click.echo(err=True)
 
 
 def get_api_key() -> str:
@@ -318,7 +341,7 @@ def get_api_key() -> str:
     Return the OpenAI API key.
     """
     key_file_path = get_api_key_path()
-    with open(key_file_path, "r") as key_file:
+    with open(key_file_path, "r", encoding="UTF-8") as key_file:
         return key_file.read().strip()
 
 
@@ -340,12 +363,12 @@ def set_key() -> None:
     key_path = get_api_key_path()
     key = get_api_key()
     if key:
-        click.echo(click.style("Error: ", fg="red") + f"API key already exists.")
-        click.echo(f"Use `{click.style(f'lmt key edit', fg='blue')}` to edit it.")
+        click.echo(click.style("Error: ", fg="red") + "API key already exists.")
+        click.echo(f"Use `{click.style('lmt key edit', fg='blue')}` to edit it.")
         return
 
     key = click.prompt("Your OpenAI API key")
-    with open(key_path, "w") as key_file:
+    with open(key_path, "w", encoding="UTF-8") as key_file:
         key_file.write(key)
     click.echo(f"{click.style('Success!', fg='green')} API key added.")
     click.echo(f"\nThe API key is stored in {key_path}.")
@@ -358,7 +381,7 @@ def edit_key() -> None:
     key_file_path = get_api_key_path()
     key = get_api_key()
     if not key:
-        click.echo(click.style("Error: ", fg="red") + f"API key does not exist.")
+        click.echo(click.style("Error: ", fg="red") + "API key does not exist.")
         click.echo("You will now be prompted to add it.\n")
         set_key()
         return
@@ -371,6 +394,10 @@ def edit_key() -> None:
     else:
         click.echo(f"{click.style('Success!', fg='green')} API key was updated.")
     click.echo(f"\nThe API key is stored in {key_file_path}.")
+
+
+# We're gonna implement a database system to log all of the responses of the ChatGPT API.
+# We'll use SQLite for this.
 
 
 TEMPLATES_DIR = get_templates_dir()

@@ -1,7 +1,8 @@
 import os
+import time
+
 import openai
 import tiktoken
-import time
 
 
 def format_prompt(system_content, user_content):
@@ -19,23 +20,28 @@ def format_prompt(system_content, user_content):
 
 
 def chatgpt_request(
+    api_key,
     prompt,
     model="gpt-3.5-turbo",
-    #max_tokens=3900,
+    # max_tokens=3900,
     n=1,
     temperature=1,
     stop=None,
     stream=False,
     update_markdown_stream=None,
 ):
+    """
+    Sends a request to the OpenAI Chat API.
+    """
     start_time = time.monotonic_ns()
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     # Make the API request
     response = openai.ChatCompletion.create(
+        api_key=api_key,
         messages=prompt,
         model=model,
-        #max_tokens=max_tokens,
+        # max_tokens=max_tokens,
         n=n,
         temperature=temperature,
         stop=stop,
@@ -92,19 +98,33 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
     except KeyError:
         print("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
+
     if model == "gpt-3.5-turbo":
         print(
             "Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming"
             " gpt-3.5-turbo-0613."
         )
-        return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
+        model = "gpt-3.5-turbo-0613"
+    elif model == "gpt-3.5-turbo-16k":
+        print(
+            "Warning: gpt-3.5-turbo-16k may change over time. Returning num tokens"
+            " assuming gpt-3.5-turbo-0613."
+        )
+        model = "gpt-3.5-turbo-0613"
     elif model == "gpt-4":
         print(
             "Warning: gpt-4 may change over time. Returning num tokens assuming"
             " gpt-4-0613."
         )
-        return num_tokens_from_messages(messages, model="gpt-4-0613")
-    elif model == "gpt-3.5-turbo-0613":
+        model = "gpt-4-0613"
+    elif model == "gpt-4-32k":
+        print(
+            "Warning: gpt-4-32k may change over time. Returning num tokens assuming"
+            " gpt-4-0613."
+        )
+        model = "gpt-4-0613"
+
+    if model == "gpt-3.5-turbo-0613":
         tokens_per_message = (
             4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
         )
@@ -114,7 +134,9 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
         tokens_per_name = 1
     else:
         raise NotImplementedError(
-            f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
+            f"num_tokens,_from_messages() is not implemented for model {model}. See"
+            " https://github.com/openai/openai-python/blob/main/chatml.md for"
+            " information on how messages are converted to tokens."
         )
     num_tokens = 0
     for message in messages:
@@ -139,10 +161,9 @@ def estimate_prompt_cost(message):
     prices = {
         "gpt-3.5-turbo": 0.0015,
         "gpt-3.5-turbo-0613": 0.0015,
-        "gpt-3.5-turbo-0613": 0.0015,
         "gpt-3.5-turbo-16k": 0.003,
+        "gpt-3.5-turbo-16k-0613": 0.003,
         "gpt-4": 0.03,
-        "gpt-4-0613": 0.03,
         "gpt-4-0613": 0.03,
         "gpt-4-32k": 0.06,
         "gpt-4-32k-0613": 0.06,

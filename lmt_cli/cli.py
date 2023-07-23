@@ -1,5 +1,4 @@
 import filecmp
-import os
 import shutil
 import sys
 
@@ -19,27 +18,37 @@ VALID_MODELS = {
 }
 
 
+# The two first parameters are required by Click for a callback.
 def validate_model_name(ctx, param, value):
     """
     Validates the model name parameter.
     """
     model_name = value.lower()
+
     if model_name in VALID_MODELS:
         return VALID_MODELS[model_name]
-    elif model_name in VALID_MODELS.values():
+
+    if model_name in VALID_MODELS.values():
         return model_name
-    else:
-        raise click.BadParameter(f"Invalid model: {model_name}")
+
+    valid_model_names = "\n".join(sorted(set(VALID_MODELS.values())))
+    aliases_model_names = "\n".join(sorted(VALID_MODELS.keys()))
+    raise click.BadParameter(
+        f"Invalid model name: {model_name}\n\nValid models"
+        f" are:\n{valid_model_names}\n\nYou can also use the"
+        f" aliases:\n{aliases_model_names}\n"
+    )
 
 
+# The two first parameters are required by Click for a callback.
 def validate_temperature(ctx, param, value):
     """
     Validates the temperature parameter.
     """
     if 0 <= value <= 2:
         return value
-    else:
-        raise click.BadParameter("Temperature must be between 0 and 2.")
+
+    raise click.BadParameter("Temperature must be between 0 and 2.")
 
 
 @click.group()
@@ -50,7 +59,6 @@ def lmt():
 
     Documentation: https://github.com/sderev/lmt
     """
-    pass
 
 
 @lmt.command()
@@ -176,12 +184,6 @@ def templates():
     """
     Manage the templates.
     """
-    pass
-
-
-@click.command(name="template")
-def template():
-    templates()
 
 
 @templates.command("list")
@@ -189,9 +191,11 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
-    if templates:
-        click.echo("\n".join(templates))
+    templates_names_list = sorted(
+        [template.stem for template in TEMPLATES_DIR.iterdir()]
+    )
+    if templates_names_list:
+        click.echo("\n".join(templates_names_list))
 
 
 @templates.command("view")
@@ -202,7 +206,7 @@ def view_template(template):
     """
     template = TEMPLATES_DIR / f"{template}.yaml"
     if template.exists():
-        with open(template, "r") as template_file:
+        with open(template, "r", encoding="UTF-8") as template_file:
             click.echo(template_file.read())
 
 
@@ -327,7 +331,6 @@ def key():
     """
     Manage the OpenAI API key.
     """
-    pass
 
 
 @key.command(name="edit")
@@ -336,6 +339,7 @@ def edit_api_key():
     Edit the OpenAI API key.
     """
     edit_key()
+
 
 @key.command(name="set")
 def set_api_key():
