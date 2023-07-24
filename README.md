@@ -25,12 +25,13 @@ If you find this project beneficial, consider expressing your support by giving 
     1. [Basic Example](#basic-example)
     1. [Add a Persona](#add-a-persona)
     1. [Switching Models](#switching-models)
-    1. [Switching Models](#switching-models)
     1. [Template Utilization](#template-utilization)
     1. [Emoji Integration](#emoji-integration)
     1. [Prompt Cost Estimation](#prompt-cost-estimation)
     1. [Reading from stdin](#reading-from-stdin)
     1. [Output Redirection](#output-redirection)
+1. [Theming Colors for Code Blocks](#theming-colors-for-code-blocks)
+    1. [Example](#example)
 1. [License](#license)
 1. [Upcoming Features](#upcoming-features)
 <!-- /TOC -->
@@ -236,6 +237,23 @@ You can use output redirections with the tools. For instance:
 
 ```bash
 lmt prompt "List 5 Wikipedia articles" --raw > wiki_articles.md
+```
+
+## Theming Colors for Code Blocks
+
+Once you used `lmt`, you should have a configuration file (`~/.config/lmt/config.json`) in which you can configure the colors for inline code and code blocks.
+
+Here are the styles for the code blocks: <https://pygments.org/styles/>
+
+As for the inline code blocks, they can be styled with the 256 colors (names or hexadecimal code).
+
+### Example
+
+```json
+{
+    "code_block_theme": "autumn",
+    "inline_code_theme": "blue on #f0f0f0"
+}
 ```
 
 ## License
