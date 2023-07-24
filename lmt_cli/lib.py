@@ -1,11 +1,14 @@
+import json
 import os
 import sys
 from pathlib import Path
 
 import click
 import openai
+from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
+from rich.theme import Theme
 
 from lmt_cli import gpt_integration as openai_utils
 from .templates import handle_template
@@ -80,6 +83,62 @@ def add_emoji(system: str) -> str:
     return system + " " + emoji_message
 
 
+def get_config_path() -> Path:
+    """
+    Gets the path to the config file.
+    """
+    config_path = Path.home() / ".config/lmt/config.json"
+    return config_path
+
+
+def load_config() -> dict:
+    """
+    Loads the config file.
+    """
+    config_path = get_config_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.touch(exist_ok=True)
+
+    try:
+        with open(config_path, "r", encoding="UTF-8") as file:
+            config = json.load(file)
+    except json.decoder.JSONDecodeError:
+        config = {}
+
+    return config
+
+
+def save_config(config: dict) -> None:
+    """
+    Saves the config file.
+    """
+    config_path = get_config_path()
+    with open(config_path, "w", encoding="UTF-8") as config_path:
+        json.dump(config, config_path, indent=4)
+
+
+def get_markdown_code_block_theme() -> str:
+    """
+    Gets the markdown code block theme from the config file.
+    """
+    config = load_config()
+    config.setdefault("code_block_theme", "monokai")
+    save_config(config)
+
+    return config["code_block_theme"]
+
+
+def get_markdown_inline_code_theme() -> str:
+    """
+    Gets the markdown inline code theme from the config file.
+    """
+    config = load_config()
+    config.setdefault("inline_code_theme", "blue on black")
+    save_config(config)
+
+    return config["inline_code_theme"]
+
+
 def generate_response(
     model: str = "gpt-3.5-turbo",
     prompt: str = None,
@@ -100,8 +159,14 @@ def generate_response(
         click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
         sys.exit(1)
 
+    # Theming for Rich Markdown
+    code_block_theme = get_markdown_code_block_theme()
+    inline_code_theme = get_markdown_inline_code_theme()
+    custom_theme = Theme({"markdown.code": inline_code_theme})
+
+    console = Console(theme=custom_theme)
     markdown_stream = ""
-    with Live(Markdown(markdown_stream), refresh_per_second=25) as live:
+    with Live(markdown_stream, console=console, refresh_per_second=25) as live:
         # Allows rich markdown formatted stream in real time
         def update_markdown_stream(chunk: str) -> None:
             nonlocal markdown_stream
@@ -109,7 +174,10 @@ def generate_response(
             if raw:
                 print("".join(chunk), end="")
             else:
-                rich_markdown_stream = Markdown(markdown_stream)
+                rich_markdown_stream = Markdown(
+                    markdown_stream,
+                    code_theme=code_block_theme,
+                )
                 live.update(rich_markdown_stream)
 
         try:
