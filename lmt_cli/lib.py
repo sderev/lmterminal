@@ -213,27 +213,26 @@ def display_debug_information(prompt, model, temperature):
     """
     Displays debug information.
     """
-    click.echo()
-    click.echo("---\n" + click.style("Debug information:", fg="yellow"))
-    click.echo()
+    click.echo("---\n" + click.style("Debug information:", fg="yellow"), err=True)
+    click.echo(err=True)
 
-    click.echo(click.style("Prompt:", fg="red"), nl=False)
+    click.echo(click.style("Prompt:", fg="red"), nl=False, err=True)
     for role in prompt:
-        click.echo()
-        click.echo(click.style(f"{role['role']}:", fg="blue"))
-        click.echo(f"{role}")
-    click.echo()
+        click.echo(err=True)
+        click.echo(click.style(f"{role['role']}:", fg="blue"), err=True)
+        click.echo(f"{role}", err=True)
+    click.echo(err=True)
 
-    click.echo(click.style("Model:", fg="red"))
-    click.echo(f"{model=}")
-    click.echo()
+    click.echo(click.style("Model:", fg="red"), err=True)
+    click.echo(f"{model=}", err=True)
+    click.echo(err=True)
 
-    click.echo(click.style("Temperature:", fg="red"))
-    click.echo(f"{temperature=}")
-    click.echo()
+    click.echo(click.style("Temperature:", fg="red"), err=True)
+    click.echo(f"{temperature=}", err=True)
+    click.echo(err=True)
 
-    click.echo(click.style("End of debug information.", fg="yellow"))
-    click.echo("---\n")
+    click.echo(click.style("End of debug information.", fg="yellow"), err=True)
+    click.echo("---\n", err=True)
 
 
 def display_tokens_count_and_cost(prompt, model):
