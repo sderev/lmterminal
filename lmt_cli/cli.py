@@ -34,11 +34,14 @@ def validate_model_name(ctx, param, value):  # pylint: disable=unused-argument
 
     valid_model_names = "\n".join(sorted(set(VALID_MODELS.values())))
     aliases_model_names = "\n".join(sorted(VALID_MODELS.keys()))
-    raise click.BadParameter(
-        f"Invalid model name: {model_name}\n\nValid models"
-        f" are:\n{valid_model_names}\n\nYou can also use the"
-        f" aliases:\n{aliases_model_names}\n"
+
+    error_message = (
+        f"{click.style('Invalid model name:', fg='red')} {model_name}\n\n"
+        f"{click.style('Valid models are:', fg='blue')}\n{valid_model_names}\n\n"
+        f"{click.style('You can also use the aliases:', fg='blue')}\n{aliases_model_names}\n"
     )
+
+    raise click.BadParameter(error_message)
 
 
 # The first two parameters are required by Click for a callback.
