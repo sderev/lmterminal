@@ -64,6 +64,8 @@ def prepare_and_generate_response(
         temperature,
     )
 
+    return content, response_time, response
+
 
 def add_emoji(system: str) -> str:
     """
