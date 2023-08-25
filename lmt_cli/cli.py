@@ -143,6 +143,8 @@ def prompt(
 
     Example: lmt prompt "Say hello" --emoji
     """
+    prompt_input = " ".join(prompt_input).strip()
+
     if not prompt_input:
         if not sys.stdin.isatty():
             prompt_input = sys.stdin.read()
@@ -157,9 +159,8 @@ def prompt(
                 )
                 + "\n---"
             )
-            prompt_input = sys.stdin.read()
+            prompt_input = sys.stdin.read().strip()
             click.echo()
-    prompt_input = "".join(prompt_input).rstrip()
 
     if system and template:
         raise click.BadOptionUsage(
