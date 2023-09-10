@@ -172,11 +172,11 @@ def prompt(
         )
 
     # If in an interactive shell, add a new line after the prompt for better readability
-    if sys.stdin.isatty():
+    if sys.stdin.isatty() and sys.stdout.isatty():
         click.echo()
 
     # If *not* in an interactive shell, enable the `--raw` option, viz. disabling `Rich` formatting
-    if not sys.stdin.isatty():
+    if not sys.stdin.isatty() and not sys.stdout.isatty():
         raw = True
 
     prepare_and_generate_response(
@@ -193,7 +193,7 @@ def prompt(
     )
 
     # Same as above
-    if sys.stdin.isatty():
+    if sys.stdin.isatty() and sys.stdout.isatty():
         click.echo()
 
 
