@@ -281,6 +281,15 @@ def get_api_key_path() -> Path:
     return key_file_path
 
 
+def write_key(key: str) -> None:
+    """
+    Write the OpenAI API key to the key file.
+    """
+    key_file_path = get_api_key_path()
+    with open(key_file_path, "w", encoding="UTF-8") as key_file:
+        key_file.write(key)
+
+
 def set_key() -> None:
     """
     Add the OpenAI API key.
@@ -292,9 +301,8 @@ def set_key() -> None:
         click.echo(f"Use `{click.style('lmt key edit', fg='blue')}` to edit it.")
         return
 
-    key = click.prompt("Your OpenAI API key")
-    with open(key_path, "w", encoding="UTF-8") as key_file:
-        key_file.write(key)
+    key = click.prompt("Your OpenAI API key", hide_input=True)
+    write_key(key)
     click.echo(f"{click.style('Success!', fg='green')} API key added.")
     click.echo(f"\nThe API key is stored in {key_path}.")
 
@@ -312,10 +320,10 @@ def edit_key() -> None:
         return
 
     original_key = key
-    click.edit(filename=key_file_path)
-    key = get_api_key()
-    if original_key == key:
-        click.echo("No changes were made.")
-    else:
+    new_key = click.prompt("Your OpenAI API key", hide_input=True)
+    if original_key != new_key:
+        write_key(new_key)
         click.echo(f"{click.style('Success!', fg='green')} API key was updated.")
+    else:
+        click.echo("No changes were made.")
     click.echo(f"\nThe API key is stored in {key_file_path}.")

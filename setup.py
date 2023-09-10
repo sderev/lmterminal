@@ -1,7 +1,6 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
-
-VERSION = "0.0.18"
+VERSION = "0.0.19"
 
 
 def read_requirements():
@@ -16,7 +15,9 @@ def get_long_description():
 
 setup(
     name="lmt-cli",
-    description="The main CLI tool within the LLM-Toolbox, designed to enable seamless communication with ChatGPT from your terminal. You can customize your experience by creating templates and using them to generate messages.",
+    description="""
+The primary CLI of LLM-Toolbox facilitates direct interaction with ChatGPT from your terminal, offering customizable templates for message generation.
+""",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
