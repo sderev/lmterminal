@@ -171,7 +171,14 @@ def prompt(
             ),
         )
 
-    click.echo()
+    # If in an interactive shell, add a new line after the prompt for better readability
+    if sys.stdin.isatty():
+        click.echo()
+
+    # If *not* in an interactive shell, enable the `--raw` option, viz. disabling `Rich` formatting
+    if not sys.stdin.isatty():
+        raw = True
+
     prepare_and_generate_response(
         system,
         template,
@@ -184,7 +191,10 @@ def prompt(
         raw,
         debug,
     )
-    click.echo()
+
+    # Same as above
+    if sys.stdin.isatty():
+        click.echo()
 
 
 @lmt.group()
