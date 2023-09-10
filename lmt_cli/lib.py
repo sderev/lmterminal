@@ -11,6 +11,7 @@ from rich.markdown import Markdown
 from rich.theme import Theme
 
 from lmt_cli import gpt_integration as openai_utils
+
 from .templates import handle_template
 
 RED = "\x1b[91m"
@@ -174,7 +175,7 @@ def generate_response(
             nonlocal markdown_stream
             markdown_stream += chunk
             if raw:
-                print("".join(chunk), end="")
+                print(chunk, end="")
             else:
                 rich_markdown_stream = Markdown(
                     markdown_stream,
