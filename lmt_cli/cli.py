@@ -152,12 +152,12 @@ def prompt(
             click.echo(
                 click.style(
                     (
-                        "You can paste your prompt below. Press <Enter> to"
-                        " skip a line.\nOnce you've done, press Ctrl+D to send it."
+                        "Write or paste your message below. Use <Enter> for new lines."
+                        "\nTo send your message, press Ctrl+D."
                     ),
                     fg="yellow",
                 )
-                + "\n---"
+                + "\n---",
             )
             prompt_input = sys.stdin.read().strip()
             click.echo()
