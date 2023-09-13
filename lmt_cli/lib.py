@@ -14,6 +14,7 @@ from lmt_cli import gpt_integration as openai_utils
 
 from .templates import handle_template
 
+BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
@@ -202,6 +203,8 @@ def generate_response(
 
         except openai.error.AuthenticationError:
             openai_utils.handle_authentication_error()
+            sys.stderr.write("\nYou can set your API key by running: ")
+            sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
             sys.exit(1)
 
         except Exception as error:

@@ -5,9 +5,9 @@ import time
 import openai
 import tiktoken
 
-BLUE = "\033[34m"
-RED = "\033[31m"
-RESET = "\033[0m"
+BLUE = "\x1b[34m"
+RED = "\x1b[91m"
+RESET = "\x1b[0m"
 
 
 def format_prompt(system_content, user_content):
@@ -190,8 +190,7 @@ def handle_rate_limit_error():
     )
     sys.stderr.write(
         "If that's the case, you can set it"
-        " here:\nhttps://platform.openai.com/account/billing/limits"
-        + "\n"
+        " here:\nhttps://platform.openai.com/account/billing/limits" + "\n"
     )
 
     sys.stderr.write("\n")
@@ -206,22 +205,19 @@ def handle_rate_limit_error():
     sys.stderr.write(
         "- Reduce your request rate or batch tokens. You can read the"
         " OpenAI rate limits"
-        " here:\nhttps://platform.openai.com/account/rate-limits"
-        + "\n"
+        " here:\nhttps://platform.openai.com/account/rate-limits" + "\n"
     )
     sys.stderr.write("\n")
     sys.stderr.write(
         "- If you are using the free plan, you can upgrade to the paid"
         " plan"
-        " here:\nhttps://platform.openai.com/account/billing/overview"
-        + "\n"
+        " here:\nhttps://platform.openai.com/account/billing/overview" + "\n"
     )
     sys.stderr.write("\n")
     sys.stderr.write(
         "- If you are using the paid plan, you can increase your usage"
         " rate limit"
-        " here:\nhttps://platform.openai.com/account/billing/limits"
-        + "\n"
+        " here:\nhttps://platform.openai.com/account/billing/limits" + "\n"
     )
 
 
@@ -230,7 +226,7 @@ def handle_authentication_error():
     Provides guidance on how to handle an authentication error.
     """
     sys.stderr.write(
-        f"{RED}Error:{RESET} Your API key or token was invalid, expired, or"
+        f"{RED}Error:{RESET} Your API key or token is invalid, expired, or"
         " revoked. Check your API key or token and make sure it is correct"
         " and active.\n"
     )
@@ -238,5 +234,3 @@ def handle_authentication_error():
         "\nYou may need to generate a new API key from your account"
         " dashboard: https://platform.openai.com/account/api-keys\n"
     )
-    sys.stderr.write("You can set your API key by running:\n")
-    sys.stderr.write(f"  {BLUE}lmt key set{RESET}\n")
