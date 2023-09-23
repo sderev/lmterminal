@@ -127,7 +127,7 @@ lmt --help
 **If you want detailed information about a specific command, such as `prompt`, you can display its help message like so**:
 
 ```bash
-lmt prompt --help
+lmt --help
 ```
 
 ### Basic Example
@@ -137,7 +137,7 @@ The simplest way to use `lmt` is by entering a prompt for the model to respond t
 **Here's a basic usage example where we ask the model to generate a greeting**:
 
 ```bash
-lmt prompt "Say hello"
+lmt "Say hello"
 ```
 
 In this case, the model will generate and return a greeting based on the given prompt.
@@ -149,7 +149,7 @@ You can also instruct the model to adopt a specific persona using the `--system`
 **Here's an example where we instruct the model to write like the philosopher Cioran**:
 
 ```bash
-lmt prompt "Tell me what you think of large language models." \
+lmt "Tell me what you think of large language models." \
         --system "You are Cioran. You write like Cioran."
 ```
 
@@ -160,7 +160,7 @@ In this case, the model will generate a response based on its understanding of C
 Switching between different models is a breeze with `lmt`. Use the `-m` flag followed by the alias of the model you wish to employ.
 
 ```bash
-lmt prompt "Explain what is a large language model" -m 4
+lmt "Explain what is a large language model" -m 4
 ```
 
 Below is a table outlining available model aliases for your convenience:
@@ -195,7 +195,7 @@ lmt templates --help
 **Here's an example of invoking a template named "cioran"**:
 
 ```bash
-lmt prompt "Tell me how AI will change the world." --template cioran
+lmt "Tell me how AI will change the world." --template cioran
 ```
 
 You can also use the shorter version: `-t cioran`.
@@ -215,7 +215,7 @@ For an estimation of your prompt's cost before sending, utilize the `--tokens` f
 To use this feature, you simply need to pipe your content into the `lmt` command like this:
 
 ```bash
-cat your_file.txt | lmt prompt
+cat your_file.txt | lmt
 ```
 
 In this example, `lmt` would use the content of `your_file.txt` as the input for the `prompt` command.
@@ -223,7 +223,7 @@ In this example, `lmt` would use the content of `your_file.txt` as the input for
 Also, remember that you can still use all other command line options with `stdin`. For instance, you might run:
 
 ```bash
-cat your_file.py | lmt prompt \
+cat your_file.py | lmt \
         --system "You explain code in the style of \
         a fast-talkin' wise guy from a 1940's gangster movie" \
         -m 4 --emoji
@@ -236,7 +236,7 @@ In this example, `lmt` takes the content of `your_file.py` as the input for the 
 You can use output redirections with the tools. For instance:
 
 ```bash
-lmt prompt "List 5 Wikipedia articles" --raw > wiki_articles.md
+lmt "List 5 Wikipedia articles" --raw > wiki_articles.md
 ```
 
 ## Theming Colors for Code Blocks

@@ -3,6 +3,7 @@ import shutil
 import sys
 
 import click
+from click_default_group import DefaultGroup
 
 from .lib import *
 from .templates import TEMPLATES_DIR, get_default_template_file_path
@@ -55,7 +56,7 @@ def validate_temperature(ctx, param, value):  # pylint: disable=unused-argument
     raise click.BadParameter("Temperature must be between 0 and 2.")
 
 
-@click.group()
+@click.group(cls=DefaultGroup, default="prompt", default_if_no_args=True)
 @click.version_option(package_name="lmt-cli")
 def lmt():
     """
