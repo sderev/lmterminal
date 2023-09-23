@@ -145,22 +145,33 @@ def prompt(
     """
     prompt_input = " ".join(prompt_input).strip()
 
+    input_prompt_instructions = (
+        "Write or paste your message below. Use <Enter> for new lines."
+        "\nTo send your message, press Ctrl+D."
+    )
+
+    # Read from stdin
     if not prompt_input:
         if not sys.stdin.isatty():
             prompt_input = sys.stdin.read()
-        elif sys.stdin.isatty():
-            click.echo(
-                click.style(
-                    (
-                        "Write or paste your message below. Use <Enter> for new lines."
-                        "\nTo send your message, press Ctrl+D."
-                    ),
-                    fg="yellow",
-                )
-                + "\n---",
-            )
+
+        if sys.stdin.isatty():
+            if sys.stdout.isatty():
+                click.echo(click.style(input_prompt_instructions, fg="yellow"))
+                click.echo("---")
+
+            # Display instructions in the terminal only, not in redirected or piped output.
+            # This ensures the user sees the instructions without affecting the file output.
+            if not sys.stdout.isatty():
+                with open("/dev/tty", "w", encoding="UTF-8") as output_stream:
+                    click.echo(
+                        click.style(input_prompt_instructions, fg="yellow"),
+                        file=output_stream,
+                    )
+                    click.echo("---", file=output_stream)
+
+            # Read user input from stdin
             prompt_input = sys.stdin.read().strip()
-            click.echo()
 
     if system and template:
         raise click.BadOptionUsage(
@@ -172,11 +183,12 @@ def prompt(
         )
 
     # If in an interactive shell, add a new line after the prompt for better readability
-    if sys.stdin.isatty() or sys.stdout.isatty():
+    if sys.stdin.isatty() and sys.stdout.isatty():
         click.echo()
 
-    # If *not* in an interactive shell, enable the `--raw` option, viz. disabling `Rich` formatting
-    if not sys.stdin.isatty() and not sys.stdout.isatty():
+    # If *not* in an interactive shell or redirecting to a file,
+    # enable the `--raw` option, viz. disabling `Rich` formatting
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
         raw = True
 
     prepare_and_generate_response(
@@ -192,8 +204,8 @@ def prompt(
         debug,
     )
 
-    # Same as above
-    if sys.stdin.isatty() or sys.stdout.isatty():
+    # Same as above, but after the response
+    if sys.stdin.isatty() and sys.stdout.isatty():
         click.echo()
 
 
