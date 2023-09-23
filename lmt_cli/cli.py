@@ -119,6 +119,13 @@ def lmt():
     help="Disable colors and formatting, and print the raw response.",
 )
 @click.option(
+    "--rich",
+    "-R",
+    is_flag=True,
+    default=False,
+    help="Enable Rich formatting for the response.",
+)
+@click.option(
     "--debug",
     is_flag=True,
     default=False,
@@ -135,6 +142,7 @@ def prompt(
     tokens,
     no_stream,
     raw,
+    rich,
     prompt_input,
     debug,
 ):
@@ -190,6 +198,10 @@ def prompt(
     # enable the `--raw` option, viz. disabling `Rich` formatting
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         raw = True
+
+    # If `--rich` is enabled, force `--raw` to be disabled
+    if rich:
+        raw = False
 
     prepare_and_generate_response(
         system,
