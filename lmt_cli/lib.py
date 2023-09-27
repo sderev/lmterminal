@@ -193,6 +193,13 @@ def generate_response(
                 temperature=temperature,
                 update_markdown_stream=update_markdown_stream,
             )
+
+            # This is temporary to ensure that the last line always ends with a newline
+            # This will be removed when refactored
+            if not content.endswith("\n"):
+                content += "\n"
+            #############################
+
             if not stream:
                 print(content)
 
