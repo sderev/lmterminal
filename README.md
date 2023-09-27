@@ -28,7 +28,8 @@ If you find this project beneficial, consider expressing your support by giving 
     1. [Template Utilization](#template-utilization)
     1. [Emoji Integration](#emoji-integration)
     1. [Prompt Cost Estimation](#prompt-cost-estimation)
-    1. [Reading from stdin](#reading-from-stdin)
+    1. [Reading from `stdin`](#reading-from-stdin)
+    1. [Append an Additional Prompt to Piped `stdin`](#append-an-additional-prompt-to-piped-stdin)
     1. [Output Redirection](#output-redirection)
 1. [Theming Colors for Code Blocks](#theming-colors-for-code-blocks)
     1. [Example](#example)
@@ -208,7 +209,7 @@ To infuse a touch of emotion into your requests, append the `--emoji` flag optio
 
 For an estimation of your prompt's cost before sending, utilize the `--tokens` flag option.
 
-### Reading from stdin
+### Reading from `stdin`
 
 `lmt` facilitates reading inputs directly from `stdin`, allowing you to pipe in the content of a file as a prompt. This feature can be particularly useful when dealing with longer or more complex prompts, or when you want to streamline your workflow by incorporating `lmt` into a larger pipeline of commands.
 
@@ -229,14 +230,25 @@ cat your_file.py | lmt \
         -m 4 --emoji
 ```
 
-In this example, `lmt` takes the content of `your_file.py` as the input for the `prompt` command. With the `gpt-4` model selected via `-m 4`, the system is instructed to respond in the style of a fast-talking wiseguy from a 1940s gangster movie, as specified in the `--system` option. The `--emoji` flag indicates that the response may include emojis for added expressiveness.
+In this example, `lmt` takes the content of `your_file.py` as the input for the `prompt` command. With the `gpt-4` model selected via `-m 4`, the system is instructed to respond in the style of a fast-talking wiseguy from a 1940s gangster movie, as specified in the `-s/--system` option. The `--emoji` flag indicates that the response may include emojis for added expressiveness.
+
+### Append an Additional Prompt to Piped `stdin`
+
+Beyond the `-s/--system` option, `lmt` offers the capability to append an additional user prompt when reading from `stdin`. This is especially useful when you want to add context or specific instructions to the piped input without altering the system prompt.
+
+For example, with a `grocery_list.txt` file, you can append a prompt for healthy alternatives and set the system prompt to guide the AI's chef-like response.
+
+```bash
+cat grocery_list.txt | lmt "What are some healthy alternatives to these items?" \
+                        --system "You are a chef with a focus on healthy and sustainable cooking."
+```
 
 ### Output Redirection
 
 You can use output redirections with the tools. For instance:
 
 ```bash
-lmt "List 5 Wikipedia articles" --raw > wiki_articles.md
+lmt "List 5 Wikipedia articles" > wiki_articles.md
 ```
 
 ## Theming Colors for Code Blocks
