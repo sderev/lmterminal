@@ -154,17 +154,22 @@ def prompt(
     """
     prompt_input = " ".join(prompt_input).strip()
 
-    input_prompt_instructions = (
-        "Write or paste your message below. Use <Enter> for new lines."
-        "\nTo send your message, press Ctrl+D."
-    )
+    # Allow for the appending of an additional prompt to the piped stdin content
+    if not sys.stdin.isatty() and prompt_input:
+        prompt_input = sys.stdin.read().strip() + "\n___\n" + prompt_input
 
-    # Read from stdin
     if not prompt_input:
+        # Read piped or redirected stdin content.
         if not sys.stdin.isatty():
-            prompt_input = sys.stdin.read()
+            prompt_input = sys.stdin.read().strip()
 
+        # Allow for structured prompts in the terminal.
         if sys.stdin.isatty():
+            input_prompt_instructions = (
+                "Write or paste your message below. Use <Enter> for new lines."
+                "\nTo send your message, press Ctrl+D."
+            )
+
             if sys.stdout.isatty():
                 click.echo(click.style(input_prompt_instructions, fg="yellow"))
                 click.echo("---")
@@ -191,18 +196,18 @@ def prompt(
             ),
         )
 
-    # If in an interactive shell, add a new line after the prompt for better readability
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        click.echo()
-
     # If *not* in an interactive shell or redirecting to a file,
     # enable the `--raw` option, viz. disabling `Rich` formatting
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if not sys.stdout.isatty():
         raw = True
 
     # If `--rich` is enabled, force `--raw` to be disabled
     if rich:
         raw = False
+
+    # If in an interactive shell, add a new line after the prompt for better readability
+    if sys.stdout.isatty():
+        click.echo()
 
     prepare_and_generate_response(
         system,
@@ -217,8 +222,8 @@ def prompt(
         debug,
     )
 
-    # Same as above, but after the response
-    if sys.stdin.isatty() and sys.stdout.isatty():
+    # Same as above (readibility), but after the LLM's response
+    if sys.stdout.isatty():
         click.echo()
 
 
