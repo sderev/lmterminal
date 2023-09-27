@@ -34,7 +34,6 @@ If you find this project beneficial, consider expressing your support by giving 
 1. [Theming Colors for Code Blocks](#theming-colors-for-code-blocks)
     1. [Example](#example)
 1. [License](#license)
-1. [Upcoming Features](#upcoming-features)
 <!-- /TOC -->
 
 ## Features
@@ -271,10 +270,6 @@ As for the inline code blocks, they can be styled with the 256 colors (names or 
 ## License
 
 `lmt` is licensed under Apache License version 2.0.
-
-## Upcoming Features
-
-While `lmt` already boasts a wide array of features, development is ongoing. Expect more features and improvements in the future!
 
 ___
 
