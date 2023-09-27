@@ -17,8 +17,6 @@ If you find this project beneficial, consider expressing your support by giving 
 1. [Installation](#installation)
     1. [`pip`](#pip)
     1. [`pipx`, the Easy Way](#pipx-the-easy-way)
-    1. [Installing `lmt` with `pipx`](#installing-lmt-with-pipx)
-    1. [Cloning the `lmt` Repository](#cloning-the-lmt-repository)
 1. [Getting Started](#getting-started)
     1. [Configuring your OpenAI API key](#configuring-your-openai-api-key)
 1. [Usage](#usage)
@@ -42,7 +40,6 @@ If you find this project beneficial, consider expressing your support by giving 
 * **Custom Templates**: Design and use your personalized toolbox of templates to streamline and automate your workflow.
 * **Read From `stdin`**: Using pipes, `lmt` can read from `stdin`, enabling you to use file content as a prompt.
 * **Command-Line & Template Requests**: `lmt` offers the flexibility of making requests directly from the command line or using pre-designed templates.
-* **Vim Integration**: As a CLI tool, it can easily be integrated in Vim as a filter command. 
 
 ## Installation
 
@@ -54,46 +51,8 @@ python3 -m pip install lmt-cli
 
 ### `pipx`, the Easy Way
 
-To use these tools, I recommend that you first install [pipx](https://pypa.github.io/pipx/installation/). It's a package manager for Python that makes the installation and upgrade of CLI apps easy (no more hassle with virtual environments 😌).
-
-* Debian / Ubuntu
-
-    ```bash
-    sudo apt install pipx
-    ```
-
-* macOS    
-
-    ```bash
-    brew install pipx
-    ```
-
-### Installing `lmt` with `pipx`
-
-To install the latest stable version of `lmt`, simply run this command:
-
 ```bash
 pipx install lmt-cli
-```
-
-If you want to follow the `main` branch:
-
-```bash
-pipx install git+https://github.com/sderev/lmt
-```
-
-To upgrade it:
-
-```bash
-pipx upgrade lmt-cli
-```
-
-### Cloning the `lmt` Repository
-
-You can clone this repository with the following command:
-
-```bash
-git clone https://github.com/sderev/lmt.git
 ```
 
 ## Getting Started
@@ -115,20 +74,6 @@ For LMT to work properly, it is necessary to acquire and configure an OpenAI API
 With these steps, you should now have successfully set up your OpenAI API key, ready for use with the LMT.
 
 ## Usage
-
-The `lmt` CLI tool is equipped with a helpful `--help` flag that displays useful information about how to use the tool and its commands.
-
-**For a general overview of all commands, you can type**:
-
-```bash
-lmt --help
-```
-
-**If you want detailed information about a specific command, such as `prompt`, you can display its help message like so**:
-
-```bash
-lmt --help
-```
 
 ### Basic Example
 
