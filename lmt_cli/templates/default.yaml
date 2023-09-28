@@ -1,14 +1,12 @@
 # Documentation: https://github.com/sderev/lmt
 
-# You may leave either of the fields empty.
-
-
 # Here, you can instruct how you want ChatGPT to behave.
 #
 # For example: 
-#
+# ```
 # system: >
-# "You talk like a snarky, fast-talking mob guy."
+#   You talk like a snarky, fast-talking mob guy.
+# ```
 system:
 
 
@@ -16,6 +14,12 @@ system:
 
 # Here, you should write what you want to say to ChatGPT.
 # For example: "As a language model yourself, how do you view your own existence?"
+# ```
+# user: >
+#   As a language model yourself, how do you view your own existence?
+# ```
+# Note that you can leave this field empty.
+#
 user:
 
 
