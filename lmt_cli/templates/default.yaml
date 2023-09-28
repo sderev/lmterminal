@@ -1,0 +1,27 @@
+# Documentation: https://github.com/sderev/lmt
+
+# You may leave either of the fields empty.
+
+
+# Here, you can instruct how you want ChatGPT to behave.
+#
+# For example: 
+#
+# system: >
+# "You talk like a snarky, fast-talking mob guy."
+system:
+
+
+
+
+# Here, you should write what you want to say to ChatGPT.
+# For example: "As a language model yourself, how do you view your own existence?"
+user:
+
+
+
+
+# The default model is "gpt-3.5-turbo".
+# More advanced models might provide more accurate or detailed responses,
+# but they also have a higher "cost per 1K tokens". Tokens refer to chunks of text that AI models read. More tokens usually mean more cost.
+model: "gpt-3.5-turbo"

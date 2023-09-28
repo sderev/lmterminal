@@ -4,7 +4,6 @@ from pathlib import Path
 
 import click
 import yaml
-from lmterminal import DEFAULT_MODEL
 
 
 def handle_template(template: str, system: str, prompt_input: str, model: str) -> tuple:
@@ -74,25 +73,4 @@ def get_default_template_file_path() -> Path:
     return default_template_file
 
 
-def get_template_names(ctx=None, param=None, incomplete=None) -> List[str]:
-    """
-    Returns a list of template names. The list is sorted alphabetically.
 
-    This function can be used for shell completion.
-    The arguments are only used for shell completion; they are given by `Click`.
- 
-    Args:
-        ctx: Click context.
-        param: Click parameter.
-        incomplete: The incomplete template name.
-
-    Returns:
-        List[str]: The list of template names.
-    """
-    templates = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
-    if ctx and param and incomplete:  # For shell completion.
-        return [name for name in templates if name.startswith(incomplete)]
-    else:
-        return templates  # For plain listing.
-
-TEMPLATES_DIR = get_templates_dir()
