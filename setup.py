@@ -15,9 +15,7 @@ def get_long_description():
 
 setup(
     name="lmt-cli",
-    description="""
-The primary CLI of LLM-Toolbox facilitates direct interaction with ChatGPT from your terminal, offering customizable templates for message generation.
-""",
+    description="Interact with OpenAI's ChatGPT models from the comfort of your terminal.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",

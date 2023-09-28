@@ -1,14 +1,8 @@
-# LMT: The CLI Tool for ChatGPT
+# Language Model Terminal
 
-`lmt` is the primary tool of the [LLM-Toolbox](https://github.com/sderev/llm-toolbox) and a versatile CLI interface tool that allows you to interact directly with OpenAI's ChatGPT models.
+`lmt` is a versatile CLI tool that allows you to interact directly with OpenAI's ChatGPT models from the comfort of your terminal.
 
-As a crucial component of the LLM-Toolbox, `lmt` exemplifies the toolbox's dedication to provide powerful and flexible tools that harness the capabilities of language models. It allows access to all available models of ChatGPT, including gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, and gpt-4-32k.
-
-Furthermore, `lmt` enables you to design and use your own templates, broadening its potential applications. The ability to read from `stdin` using pipes also allows for convenient integration with other command-line tools.
-
-If you find this project beneficial, consider expressing your support by giving it a star ⭐😊.
-
-![cioran](https://github.com/sderev/lmt/assets/24412384/2e79cc97-903a-46ee-8a48-c5e42dbf7a63)
+![demo](https://github.com/sderev/lmt/assets/24412384/5cb2c7b2-7edd-4b24-919d-581e5cd7c5b5)
 
 <!-- TOC -->
 ## Table of Contents
@@ -37,9 +31,10 @@ If you find this project beneficial, consider expressing your support by giving 
 ## Features
 
 * **Access All ChatGPT Models**: `lmt` supports all available ChatGPT models (gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, gpt-4-32k), giving you the power to choose the most suitable one for your task.
-* **Custom Templates**: Design and use your personalized toolbox of templates to streamline and automate your workflow.
-* **Read From `stdin`**: Using pipes, `lmt` can read from `stdin`, enabling you to use file content as a prompt.
-* **Command-Line & Template Requests**: `lmt` offers the flexibility of making requests directly from the command line or using pre-designed templates.
+* **Custom Templates**: Design your own toolbox of templates to streamline your workflow.
+* **Read File**: Incorporate file content into your prompts seamlessly.
+* **Output to a File**: Redirect standard output (`stdout`) to a file or another program as needed.
+* **Easy Vim Integration**: Integrate ChatGPT into Vim effortlessly by using `lmt` as a filter command.
 
 ## Installation
 
@@ -189,7 +184,7 @@ cat grocery_list.txt | lmt "What are some healthy alternatives to these items?" 
 
 ### Output Redirection
 
-You can use output redirections with the tools. For instance:
+You can use output redirections. For instance:
 
 ```bash
 lmt "List 5 Wikipedia articles" > wiki_articles.md
