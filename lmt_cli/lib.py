@@ -284,7 +284,7 @@ def get_api_key_path() -> Path:
     """
     Return the path to the keys file.
     """
-    key_file_path = Path.home() / ".config" / "lmt" / "key.env"
+    key_file_path = Path.home() / ".config" / "lmt" / "API_keys.json"
     if not key_file_path.exists():
         key_file_path.parent.mkdir(parents=True, exist_ok=True)
         key_file_path.touch()
