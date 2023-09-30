@@ -23,6 +23,7 @@
     1. [Reading from `stdin`](#reading-from-stdin)
     1. [Append an Additional Prompt to Piped `stdin`](#append-an-additional-prompt-to-piped-stdin)
     1. [Output Redirection](#output-redirection)
+    1. [Using `lmt` as a Vim Filter Command](#using-lmt-as-a-vim-filter-command)
 1. [Theming Colors for Code Blocks](#theming-colors-for-code-blocks)
     1. [Example](#example)
 1. [License](#license)
@@ -189,6 +190,16 @@ You can use output redirections. For instance:
 ```bash
 lmt "List 5 Wikipedia articles" > wiki_articles.md
 ```
+
+### Using `lmt` as a Vim Filter Command
+
+To invoke `lmt` as a filter command in Vim, you can use the command `:.!lmt`. Remember, Vim offers the shortcut `!!` as a quick way to enter `:.!`. This means you can simply type `!!lmt` to initiate your prompt.
+
+**Example**: `:.!lmt write an implementation of binary search`
+
+Additionally, you can filter specific lines from your text and pass them as a prompt to `lmt`. To achieve this, highlight the desired lines in `VISUAL` mode (or use `ex` syntax), and then enter `:.!lmt "Your additional prompt here"`.
+
+![vim_filter_command_code](https://github.com/sderev/lmt/assets/24412384/f799a5e3-3565-46f2-968d-bad57d281c78)
 
 ## Theming Colors for Code Blocks
 
