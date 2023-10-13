@@ -213,7 +213,7 @@ As for the inline code blocks, they can be styled with the 256 colors (names or 
 
 ```json
 {
-    "code_block_theme": "autumn",
+    "code_block_theme": "default",
     "inline_code_theme": "blue on #f0f0f0"
 }
 ```
