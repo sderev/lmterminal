@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-VERSION = "0.0.27"
+VERSION = "1.0.0"
 
 
 def read_requirements():
@@ -15,7 +15,7 @@ def get_long_description():
 
 setup(
     name="lmt-cli",
-    description="Interact with OpenAI's ChatGPT models from the comfort of your terminal.",
+    description="Language Models Terminal: interact with OpenAI's ChatGPT models from the comfort of your terminal.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
