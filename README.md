@@ -144,7 +144,7 @@ For an estimation of your prompt's cost before sending, utilize the `--tokens` f
 
 ### Reading from `stdin`
 
-`lmt` facilitates reading inputs directly from `stdin`, allowing you to pipe in the content of a file as a prompt. This feature can be particularly useful when dealing with longer or more complex prompts, or when you want to streamline your workflow by incorporating `lmt` into a larger pipeline of commands.
+`lmt` facilitates reading inputs directly from `stdin`, allowing you to pipe in the content of a file as a prompt.
 
 To use this feature, you simply need to pipe your content into the `lmt` command like this:
 
