@@ -384,7 +384,7 @@ def rename_template(template):
     """
     Rename the template.
     """
-    template_file = get_templates_dir() / template
+    template_file = get_templates_dir() / f"{template}.yaml"
     if template_file.exists():
         new_template_name = click.prompt("New template name", default=template)
         new_template_file = get_templates_dir() / new_template_name
