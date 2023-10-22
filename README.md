@@ -1,6 +1,6 @@
-# Language Model Terminal
+# Language Models Terminal
 
-`lmt` is a versatile CLI tool that allows you to interact directly with OpenAI's ChatGPT models from the comfort of your terminal.
+`lmt` is a versatile CLI tool that enables you to interact directly with OpenAI's ChatGPT models from the comfort of your terminal.
 
 ![demo](https://github.com/sderev/lmt/assets/24412384/5cb2c7b2-7edd-4b24-919d-581e5cd7c5b5)
 
