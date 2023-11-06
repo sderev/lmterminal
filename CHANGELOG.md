@@ -87,16 +87,6 @@ Now that the `o1` model is out of its preview, there are new endpoints:
 
 * Pricing of OpenAI models
 
-# 2024-02-10
-
-## Added
-
-* Add new OpenAI models' names (*-0125)
-
-## Changed
-
-* Pricing of OpenAI models
-
 # 2023-11-06
 
 ## Changed
