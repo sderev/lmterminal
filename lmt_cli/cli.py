@@ -9,14 +9,17 @@ from .lib import *
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
-    "chatgpt": "gpt-3.5-turbo",
-    "chatgpt-16k": "gpt-3.5-turbo-16k",
+    "chatgpt": "gpt-3.5-turbo-1106",
     "3.5": "gpt-3.5-turbo",
-    "3.5-16k": "gpt-3.5-turbo-16k",
+    "3.5-0613": "gpt-3.5-turbo-0613",
+    "3.5-16k-0613": "gpt-3.5-turbo-16k-0613",
+    "gpt-instruct": "gpt-3.5-turbo-instruct",
     "4": "gpt-4",
     "gpt4": "gpt-4",
-    "4-32k": "gpt-4-32k",
-    "gpt4-32k": "gpt-4-32k",
+    "4-turbo": "gpt-4-1106-preview",
+    "gpt4-turbo": "gpt-4-1106-preview",
+    "4-32k": "gpt-4-32k-0613",
+    "gpt4-32k": "gpt-4-32k-0613",
 }
 
 
