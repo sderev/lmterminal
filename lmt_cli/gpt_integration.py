@@ -164,12 +164,14 @@ def estimate_prompt_cost(message):
     num_tokens = num_tokens_from_messages(message)
 
     prices = {
-        "gpt-3.5-turbo": 0.0015,
+        "gpt-3.5-turbo": 0.001,
         "gpt-3.5-turbo-0613": 0.0015,
-        "gpt-3.5-turbo-16k": 0.003,
         "gpt-3.5-turbo-16k-0613": 0.003,
+        "gpt-3.5-turbo-1106": 0.001,
+        "gpt-3.5-turbo-instruct": 0.0015,
         "gpt-4": 0.03,
         "gpt-4-0613": 0.03,
+        "gpt-4-1106-preview": 0.01,
         "gpt-4-32k": 0.06,
         "gpt-4-32k-0613": 0.06,
     }
