@@ -1,6 +1,6 @@
 click
 click_default_group
-openai
+openai<1.0
 PyYAML
 rich
 tiktoken
