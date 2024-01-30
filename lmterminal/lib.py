@@ -307,6 +307,7 @@ def get_api_key_path() -> Path:
     if not key_file_path.exists():
         key_file_path.parent.mkdir(parents=True, exist_ok=True)
         key_file_path.touch()
+        os.chmod(key_file_path, 0o600)
     return key_file_path
 
 
@@ -317,6 +318,7 @@ def write_key(key: str) -> None:
     key_file_path = get_api_key_path()
     with open(key_file_path, "w", encoding="UTF-8") as key_file:
         key_file.write(key)
+    os.chmod(key_file_path, 0o600)
 
 
 def set_key() -> None:
