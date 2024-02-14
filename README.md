@@ -34,7 +34,7 @@
 * **Custom Templates**: Design your own toolbox of templates to streamline your workflow.
 * **Read File**: Incorporate file content into your prompts seamlessly.
 * **Output to a File**: Redirect standard output (`stdout`) to a file or another program as needed.
-* **Easy Vim Integration**: Integrate ChatGPT into Vim effortlessly by using `lmt` as a filter command.
+* **Easy Vim Integration**: Integrate ChatGPT into Vim by using `lmt` as a filter command.
 
 ## Installation
 
