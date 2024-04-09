@@ -172,6 +172,8 @@ def estimate_prompt_cost(message):
         "gpt-3.5-turbo-instruct": 0.0015,
         "gpt-4": 0.03,
         "gpt-4-turbo-preview": 0.01,
+        "gpt-4-turbo": 0.01,
+        "gpt-4-turbo-2024-04-09": 0.01,
         "gpt-4-0613": 0.03,
         "gpt-4-1106-preview": 0.01,
         "gpt-4-0125-preview": 0.01,
