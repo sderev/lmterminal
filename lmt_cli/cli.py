@@ -16,9 +16,9 @@ VALID_MODELS = {
     "gpt-instruct": "gpt-3.5-turbo-instruct",
     "4": "gpt-4",
     "gpt4": "gpt-4",
-    "4-turbo": "gpt-4-0125-preview",
-    "4t": "gpt-4-0125-preview",
-    "gpt4-turbo": "gpt-4-0125-preview",
+    "4-turbo": "gpt-4-turbo",
+    "4t": "gpt-4-turbo",
+    "gpt4-turbo": "gpt-4-turbo",
     "4-32k": "gpt-4-32k",
     "gpt4-32k": "gpt-4-32k",
 }
