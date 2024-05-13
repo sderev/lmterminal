@@ -148,31 +148,32 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
     return num_tokens
 
 
-def estimated_cost(num_tokens, price_per_1k_tokens):
+def estimated_cost(num_tokens, price_per_1M_tokens):
     """Returns the estimated cost of a number of tokens."""
-    return f"{num_tokens / 1000 * price_per_1k_tokens:.6f}"
+    return f"{num_tokens / 10**6 * price_per_1M_tokens:.6f}"
 
 
 def estimate_prompt_cost(message):
     """Returns the estimated cost of a prompt."""
     num_tokens = num_tokens_from_messages(message)
 
+    # Prices in USD per 1M tokens
     prices = {
-        "gpt-3.5-turbo": 0.0005,
-        "gpt-3.5-turbo-0613": 0.0005,
-        "gpt-3.5-turbo-0125": 0.0005,
-        "gpt-3.5-turbo-16k-0613": 0.003,
-        "gpt-3.5-turbo-1106": 0.0005,
-        "gpt-3.5-turbo-instruct": 0.0015,
-        "gpt-4": 0.03,
-        "gpt-4-turbo-preview": 0.01,
-        "gpt-4-turbo": 0.01,
+        "gpt-3.5-turbo": 0.50,
+        "gpt-3.5-turbo-0613": 0.50,
+        "gpt-3.5-turbo-0125": 0.50,
+        "gpt-3.5-turbo-16k-0613": 0.30,
+        "gpt-3.5-turbo-1106": 0.50,
+        "gpt-3.5-turbo-instruct": 1.50,
+        "gpt-4": 30,
+        "gpt-4-turbo-preview": 10,
+        "gpt-4-turbo": 10,
         "gpt-4-turbo-2024-04-09": 0.01,
         "gpt-4-0613": 0.03,
-        "gpt-4-1106-preview": 0.01,
-        "gpt-4-0125-preview": 0.01,
-        "gpt-4-32k": 0.06,
-        "gpt-4-32k-0613": 0.06,
+        "gpt-4-1106-preview": 10,
+        "gpt-4-0125-preview": 10,
+        "gpt-4-32k": 60,
+        "gpt-4-32k-0613": 60,
     }
 
     return {model: estimated_cost(num_tokens, price) for model, price in prices.items()}
