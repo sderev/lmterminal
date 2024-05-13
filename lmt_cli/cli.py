@@ -106,9 +106,7 @@ def lmt():
 @click.option(
     "--tokens",
     is_flag=True,
-    help=(
-        "Count the number of tokens in the prompt, and display the cost of the request."
-    ),
+    help=("Count the number of tokens in the prompt, and display the cost of the request."),
 )
 @click.option(
     "--no-stream",
@@ -243,9 +241,7 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates_names_list = sorted(
-        [template.stem for template in TEMPLATES_DIR.iterdir()]
-    )
+    templates_names_list = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
     if templates_names_list:
         click.echo("\n".join(templates_names_list))
 
@@ -287,8 +283,7 @@ def edit(template):
             + f"Template {click.style(template, fg='red')} does not exist."
         )
         click.echo(
-            f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to"
-            " create it."
+            f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to" " create it."
         )
 
 
@@ -306,8 +301,7 @@ def add_template(template):
                 + f"Template {click.style(template, fg='red')} already exists."
             )
             click.echo(
-                f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to"
-                " edit it."
+                f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to" " edit it."
             )
             return
 
@@ -372,10 +366,7 @@ def rename_template(template):
             f" '{click.style(new_template_name, fg='green')}'."
         )
     else:
-        click.echo(
-            click.style("Error: ", fg="red")
-            + f"The template '{template}' does not exist."
-        )
+        click.echo(click.style("Error: ", fg="red") + f"The template '{template}' does not exist.")
 
 
 @lmt.group()
