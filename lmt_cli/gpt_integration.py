@@ -117,22 +117,16 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
         )
         model = "gpt-3.5-turbo-0613"
     elif model == "gpt-4":
-        print(
-            "Warning: gpt-4 may change over time. Returning num tokens assuming"
-            " gpt-4-0613."
-        )
+        print("Warning: gpt-4 may change over time. Returning num tokens assuming" " gpt-4-0613.")
         model = "gpt-4-0613"
     elif model == "gpt-4-32k":
         print(
-            "Warning: gpt-4-32k may change over time. Returning num tokens assuming"
-            " gpt-4-0613."
+            "Warning: gpt-4-32k may change over time. Returning num tokens assuming" " gpt-4-0613."
         )
         model = "gpt-4-0613"
 
     if model == "gpt-3.5-turbo-0613":
-        tokens_per_message = (
-            4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        )
+        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
         tokens_per_name = -1  # if there's a name, the role is omitted
     elif model == "gpt-4-0613":
         tokens_per_message = 3
@@ -202,10 +196,7 @@ def handle_rate_limit_error():
 
     sys.stderr.write("\n")
     sys.stderr.write(
-        BLUE
-        + "If you have set a usage rate limit, please try the following steps:"
-        + RESET
-        + "\n"
+        BLUE + "If you have set a usage rate limit, please try the following steps:" + RESET + "\n"
     )
     sys.stderr.write("- Wait a few seconds before trying again.\n")
     sys.stderr.write("\n")
