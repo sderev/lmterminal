@@ -174,6 +174,8 @@ def estimate_prompt_cost(message):
         "gpt-4-0125-preview": 10,
         "gpt-4-32k": 60,
         "gpt-4-32k-0613": 60,
+        "gpt-4o": 5,
+        "gpt-4o-2024-05-13": 5,
     }
 
     return {model: estimated_cost(num_tokens, price) for model, price in prices.items()}

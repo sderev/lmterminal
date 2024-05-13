@@ -21,6 +21,8 @@ VALID_MODELS = {
     "gpt4-turbo": "gpt-4-turbo",
     "4-32k": "gpt-4-32k",
     "gpt4-32k": "gpt-4-32k",
+    "4o": "gpt-4o",
+    "4o-2024-05-13": "gpt-4o-2024-05-13",
 }
 
 
