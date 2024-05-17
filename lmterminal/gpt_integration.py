@@ -89,11 +89,16 @@ def chatgpt_request(
     )
 
 
-def num_tokens_from_string(string, model="gpt-3.5-turbo-0613"):
+def num_tokens_from_string(string, model="gpt-3.5-turbo"):
     """Returns the number of tokens in a text string."""
-    encoding = tiktoken.encoding_for_model(model)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+        num_tokens = len(encoding.encode(string))
+    except KeyError as error:
+        print(f"{RED}Error{RESET}: {error}.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        return num_tokens
 
 
 def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
