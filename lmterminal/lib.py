@@ -10,7 +10,7 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
 
-from lmt_cli import gpt_integration as openai_utils
+from lmterminal import gpt_integration as openai_utils
 
 from .templates import handle_template
 
