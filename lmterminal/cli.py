@@ -9,20 +9,28 @@ from .lib import *
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
-    "chatgpt": "gpt-3.5-turbo-0125",
-    "3.5": "gpt-3.5-turbo",
-    "3.5-0613": "gpt-3.5-turbo-0613",
-    "3.5-16k-0613": "gpt-3.5-turbo-16k-0613",
-    "gpt-instruct": "gpt-3.5-turbo-instruct",
-    "4": "gpt-4",
-    "gpt4": "gpt-4",
-    "4-turbo": "gpt-4-turbo",
-    "4t": "gpt-4-turbo",
-    "gpt4-turbo": "gpt-4-turbo",
-    "4-32k": "gpt-4-32k",
-    "gpt4-32k": "gpt-4-32k",
-    "4o": "gpt-4o",
-    "4o-2024-05-13": "gpt-4o-2024-05-13",
+    "gpt-3.5-turbo": (
+        "chatgpt",
+        "3.5",
+    ),
+    "gpt-3.5-turbo-0613": None,
+    "gpt-3.5-turbo-16k-0613": None,
+    "gpt-3.5-turbo-instruct": None,
+    "gpt-4": (
+        "4",
+        "gpt4",
+    ),
+    "gpt-4-turbo": (
+        "4t",
+        "4-turbo",
+        "gpt4-turbo",
+    ),
+    "gpt-4-32k": (
+        "4-32k",
+        "gpt4-32k",
+    ),
+    "gpt-4o": ("4o",),
+    "gpt-4o-2024-05-13": None,
 }
 
 
@@ -31,21 +39,18 @@ def validate_model_name(ctx, param, value):
     """
     Validates the model name parameter.
     """
+    # This is the value that the user entered for the model name.
     model_name = value.lower()
 
-    if model_name in VALID_MODELS:
-        return VALID_MODELS[model_name]
-
-    if model_name in VALID_MODELS.values():
-        return model_name
-
-    valid_model_names = "\n".join(sorted(set(VALID_MODELS.values())))
-    aliases_model_names = "\n".join(sorted(VALID_MODELS.keys()))
+    for model, aliases in VALID_MODELS.items():
+        if model_name == model:
+            return model
+        if aliases is not None and model_name in aliases:
+            return model
 
     error_message = (
-        f"{click.style('Invalid model name:', fg='red')} {model_name}\n\n"
-        f"{click.style('Valid models are:', fg='blue')}\n{valid_model_names}\n\n"
-        f"{click.style('You can also use the aliases:', fg='blue')}\n{aliases_model_names}\n"
+        f"{click.style('Invalid model name.', fg='red')}\n"
+        f"{click.style('To see the model names and their aliases, use:', fg='blue')} lmt models"
     )
 
     raise click.BadParameter(error_message)
@@ -229,6 +234,19 @@ def prompt(
     # Same as above (readibility), but after the LLM's response
     if sys.stdout.isatty():
         click.echo()
+
+
+@lmt.command()
+def models():
+    """
+    List the available models.
+    """
+    for model, aliases in VALID_MODELS.items():
+        click.echo(model)
+        if aliases:
+            if len(aliases) == 1:
+                click.echo(f"  Alias: {aliases[0]}")
+            click.echo(f"  Aliases: {', '.join(aliases)}")
 
 
 @lmt.group()
