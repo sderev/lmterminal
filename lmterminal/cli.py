@@ -63,12 +63,12 @@ def validate_temperature(ctx, param, value):
 
 
 @click.group(cls=DefaultGroup, default="prompt", default_if_no_args=True)
-@click.version_option(package_name="lmt-cli")
+@click.version_option(package_name="lmterminal")
 def lmt():
     """
     Talk to ChatGPT.
 
-    Documentation: https://github.com/sderev/lmt
+    Documentation: https://github.com/sderev/lmterminal
     """
 
 
