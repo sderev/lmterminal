@@ -15,7 +15,7 @@ def get_long_description():
 
 setup(
     name="LMterminal",
-    description="Interact with OpenAI's ChatGPT models from the comfort of your terminal.",
+    description="LMterminal: Interact with OpenAI's ChatGPT models from the comfort of your terminal.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
