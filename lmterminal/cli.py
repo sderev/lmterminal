@@ -43,21 +43,18 @@ def validate_model_name(ctx, param, value):
     """
     Validates the model name parameter.
     """
+    # This is the value that the user entered for the model name.
     model_name = value.lower()
 
-    if model_name in VALID_MODELS:
-        return VALID_MODELS[model_name]
-
-    if model_name in VALID_MODELS.values():
-        return model_name
-
-    valid_model_names = "\n".join(sorted(set(VALID_MODELS.values())))
-    aliases_model_names = "\n".join(sorted(VALID_MODELS.keys()))
+    for model, aliases in VALID_MODELS.items():
+        if model_name == model:
+            return model
+        if aliases is not None and model_name in aliases:
+            return model
 
     error_message = (
-        f"{click.style('Invalid model name:', fg='red')} {model_name}\n\n"
-        f"{click.style('Valid models are:', fg='blue')}\n{valid_model_names}\n\n"
-        f"{click.style('You can also use the aliases:', fg='blue')}\n{aliases_model_names}\n"
+        f"{click.style('Invalid model name.', fg='red')}\n"
+        f"{click.style('To see the model names and their aliases, use:', fg='blue')} lmt models"
     )
 
     raise click.BadParameter(error_message)
@@ -241,6 +238,19 @@ def prompt(
     # Same as above (readibility), but after the LLM's response
     if sys.stdout.isatty():
         click.echo()
+
+
+@lmt.command()
+def models():
+    """
+    List the available models.
+    """
+    for model, aliases in VALID_MODELS.items():
+        click.echo(model)
+        if aliases:
+            if len(aliases) == 1:
+                click.echo(f"  Alias: {aliases[0]}")
+            click.echo(f"  Aliases: {', '.join(aliases)}")
 
 
 @lmt.group()
