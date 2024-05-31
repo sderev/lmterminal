@@ -55,7 +55,7 @@ pipx install LMterminal
 
 ### Configuring your OpenAI API key
 
-For LMT to work properly, it is necessary to acquire and configure an OpenAI API key. Follow these steps to accomplish this:
+For LMterminal to work properly, it is necessary to acquire and configure an OpenAI API key. Follow these steps to accomplish this:
 
 1. **Acquire the OpenAI API key**: You can do this by creating an account on the [OpenAI website](https://platform.openai.com/account/api-keys). Once registered, you will have access to your unique API key.
 
@@ -220,8 +220,8 @@ As for the inline code blocks, they can be styled with the 256 colors (names or 
 
 ## License
 
-`lmt` is licensed under Apache License version 2.0.
+LMterminal is licensed under Apache License version 2.0.
 
 ___
 
-<https://github.com/sderev/lmt>
+<https://github.com/sderev/lmterminal>
