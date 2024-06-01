@@ -98,26 +98,19 @@ In this case, the model will generate a response based on its understanding of C
 
 ### Switching Models
 
-Switching between different models is a breeze with `lmt`. Use the `-m` flag followed by the alias of the model you wish to employ.
+Switching between different models is simple. Just specify the `-m/--model` flag followed by the model's name or alias.
+
+For instance, if you want to use the `gpt-4o` model, simply include `-m 4o` in your command.
 
 ```bash
-lmt "Explain what is a large language model" -m 4
+lmt "Explain what is a large language model" -m 4o
 ```
 
-Below is a table outlining available model aliases for your convenience:
+To see the list of available models and their aliases, use the following command:
 
-| Alias | Corresponding Model |
-| --- | --- |
-| chatgpt | gpt-3.5-turbo |
-| chatgpt-16k | gpt-3.5-turbo-16k |
-| 3.5 | gpt-3.5-turbo |
-| 3.5-16k | gpt-3.5-turbo-16k |
-| 4 | gpt-4 |
-| gpt4 | gpt-4 |
-| 4-32k | gpt-4-32k |
-| gpt4-32k | gpt-4-32k |
-
-For instance, if you want to use the `gpt-4` model, simply include `-m 4` in your command.
+```bash
+lmt models
+```
 
 ### Template Utilization
 
