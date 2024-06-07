@@ -13,8 +13,6 @@ VALID_MODELS = {
         "chatgpt",
         "3.5",
     ),
-    "gpt-3.5-turbo-0613": None,
-    "gpt-3.5-turbo-16k-0613": None,
     "gpt-3.5-turbo-instruct": None,
     "gpt-4": (
         "4",
