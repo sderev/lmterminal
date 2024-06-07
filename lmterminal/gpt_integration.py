@@ -89,14 +89,14 @@ def chatgpt_request(
     )
 
 
-def num_tokens_from_string(string, model="gpt-3.5-turbo-0613"):
+def num_tokens_from_string(string, model="gpt-3.5-turbo"):
     """Returns the number of tokens in a text string."""
     encoding = tiktoken.encoding_for_model(model)
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
 
-def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
+def num_tokens_from_messages(messages, model="gpt-3.5-turbo"):
     """Returns the number of tokens used by a list of messages."""
     try:
         encoding = tiktoken.encoding_for_model(model)
@@ -105,30 +105,9 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
         encoding = tiktoken.get_encoding("cl100k_base")
 
     if model == "gpt-3.5-turbo":
-        print(
-            "Warning: gpt-3.5-turbo may change over time. Returning num tokens assuming"
-            " gpt-3.5-turbo-0613."
-        )
-        model = "gpt-3.5-turbo-0613"
-    elif model == "gpt-3.5-turbo-16k":
-        print(
-            "Warning: gpt-3.5-turbo-16k may change over time. Returning num tokens"
-            " assuming gpt-3.5-turbo-0613."
-        )
-        model = "gpt-3.5-turbo-0613"
-    elif model == "gpt-4":
-        print("Warning: gpt-4 may change over time. Returning num tokens assuming" " gpt-4-0613.")
-        model = "gpt-4-0613"
-    elif model == "gpt-4-32k":
-        print(
-            "Warning: gpt-4-32k may change over time. Returning num tokens assuming" " gpt-4-0613."
-        )
-        model = "gpt-4-0613"
-
-    if model == "gpt-3.5-turbo-0613":
         tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
         tokens_per_name = -1  # if there's a name, the role is omitted
-    elif model == "gpt-4-0613":
+    elif model == "gpt-4":
         tokens_per_message = 3
         tokens_per_name = 1
     else:
@@ -160,9 +139,7 @@ def estimate_prompt_cost(message):
     # Prices in USD per 1M tokens
     prices = {
         "gpt-3.5-turbo": 0.50,
-        "gpt-3.5-turbo-0613": 0.50,
         "gpt-3.5-turbo-0125": 0.50,
-        "gpt-3.5-turbo-16k-0613": 0.30,
         "gpt-3.5-turbo-1106": 0.50,
         "gpt-3.5-turbo-instruct": 1.50,
         "gpt-4": 30,
