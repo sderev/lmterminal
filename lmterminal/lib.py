@@ -5,18 +5,18 @@ from pathlib import Path
 
 import click
 import openai
+from lmterminal import gpt_integration as openai_utils
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
-
-from lmterminal import gpt_integration as openai_utils
 
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
+DEFAULT_MODEL = "gpt-3.5-turbo"
 
 
 def prepare_and_generate_response(
@@ -38,12 +38,13 @@ def prepare_and_generate_response(
         system = ""
 
     if template:
-        system, prompt_input, model_template = handle_template(
+        system, prompt_input, template_model = handle_template(
             template, system, prompt_input, model
         )
-
-    if not model:
-        model = model_template
+        # If a model name is given in the options,
+        # it will bypass the model name in the template.
+        if model == DEFAULT_MODEL:
+            model = template_model
 
     if emoji:
         system = add_emoji(system)
@@ -74,8 +75,7 @@ def add_emoji(system: str) -> str:
     Adds an emoji to the system message.
     """
     emoji_message = (
-        "Add plenty of emojis as a colorful way to convey emotions. However, don't"
-        " mention it."
+        "Add plenty of emojis as a colorful way to convey emotions. However, don't" " mention it."
     )
     system = system.rstrip()
 
@@ -156,9 +156,7 @@ def generate_response(
     openai.api_key = get_api_key()
 
     if not openai.api_key:
-        click.echo(
-            f"{click.style('Error:', fg='red')} You need to set your OpenAI API key."
-        )
+        click.echo(f"{click.style('Error:', fg='red')} You need to set your OpenAI API key.")
         click.echo("You can do so by running:", nl=False)
         click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
         sys.exit(1)
@@ -257,16 +255,14 @@ def display_tokens_count_and_cost(prompt, model):
     cost = openai_utils.estimate_prompt_cost(prompt)[model]
 
     click.echo(
-        "Number of tokens in the prompt:"
-        f" {click.style(str(number_of_tokens), fg='yellow')}."
+        "Number of tokens in the prompt:" f" {click.style(str(number_of_tokens), fg='yellow')}."
     )
     click.echo(
         f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
         f" {click.style(f'${cost}', fg='yellow')}."
     )
     click.echo(
-        "Please note that this cost applies only to the prompt, not the"
-        " subsequent response."
+        "Please note that this cost applies only to the prompt, not the" " subsequent response."
     )
     sys.exit(0)
 

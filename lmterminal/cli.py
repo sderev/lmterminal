@@ -85,7 +85,7 @@ def lmt():
 @click.option(
     "--model",
     "-m",
-    default="gpt-3.5-turbo",
+    default=DEFAULT_MODEL,
     help="The model to use for the requests.",
     callback=validate_model_name,
 )
