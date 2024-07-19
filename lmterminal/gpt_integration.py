@@ -109,18 +109,9 @@ def num_tokens_from_messages(messages, model="gpt-3.5-turbo"):
         print("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
 
-    if model == "gpt-3.5-turbo":
-        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
-        tokens_per_name = -1  # if there's a name, the role is omitted
-    elif model == "gpt-4":
-        tokens_per_message = 3
-        tokens_per_name = 1
-    else:
-        raise NotImplementedError(
-            f"num_tokens,_from_messages() is not implemented for model {model}. See"
-            " https://github.com/openai/openai-python/blob/main/chatml.md for"
-            " information on how messages are converted to tokens."
-        )
+    tokens_per_message = 3
+    tokens_per_name = 1
+
     num_tokens = 0
     for message in messages:
         num_tokens += tokens_per_message
@@ -137,9 +128,9 @@ def estimated_cost(num_tokens, price_per_1M_tokens):
     return f"{num_tokens / 10**6 * price_per_1M_tokens:.6f}"
 
 
-def estimate_prompt_cost(message):
+def estimate_prompt_cost(message, model):
     """Returns the estimated cost of a prompt."""
-    num_tokens = num_tokens_from_messages(message)
+    num_tokens = num_tokens_from_messages(message, model)
 
     # Prices in USD per 1M tokens
     prices = {
@@ -159,7 +150,7 @@ def estimate_prompt_cost(message):
         "gpt-4o-2024-05-13": 5,
     }
 
-    return {model: estimated_cost(num_tokens, price) for model, price in prices.items()}
+    return estimated_cost(num_tokens, prices[model])
 
 
 def handle_rate_limit_error():
