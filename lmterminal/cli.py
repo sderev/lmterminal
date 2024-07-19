@@ -5,22 +5,36 @@ import sys
 import click
 from click_default_group import DefaultGroup
 
-from .lib import edit_key, prepare_and_generate_response, set_key
+from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
-    "chatgpt": "gpt-3.5-turbo-0125",
-    "3.5": "gpt-3.5-turbo",
-    "gpt-instruct": "gpt-3.5-turbo-instruct",
-    "4": "gpt-4",
-    "gpt4": "gpt-4",
-    "4-turbo": "gpt-4-turbo",
-    "4t": "gpt-4-turbo",
-    "gpt4-turbo": "gpt-4-turbo",
-    "4-32k": "gpt-4-32k",
-    "gpt4-32k": "gpt-4-32k",
-    "4o": "gpt-4o",
-    "4o-2024-05-13": "gpt-4o-2024-05-13",
+    "gpt-3.5-turbo": (
+        "chatgpt",
+        "3.5",
+    ),
+    "gpt-3.5-turbo-instruct": None,
+    "gpt-4": (
+        "4",
+        "gpt4",
+    ),
+    "gpt-4-turbo": (
+        "4t",
+        "4-turbo",
+        "gpt4-turbo",
+    ),
+    "gpt-4-32k": (
+        "4-32k",
+        "gpt4-32k",
+    ),
+    "gpt-4o": ("4o",),
+    "gpt-4o-2024-05-13": None,
+    "gpt-4o-mini": (
+        "4o-mini",
+        "4omini",
+        "4om",
+    ),
+    "gpt-4o-mini-2024-07-18": None,
 }
 
 

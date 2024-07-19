@@ -9,6 +9,8 @@ BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
+DEFAULT_MODEL = "gpt-4o-mini"
+
 
 def format_prompt(system_content, user_content):
     """Returns a formatted prompt for the OpenAI API."""
@@ -27,7 +29,7 @@ def format_prompt(system_content, user_content):
 def chatgpt_request(
     api_key,
     prompt,
-    model="gpt-3.5-turbo",
+    model=DEFAULT_MODEL,
     # max_tokens=3900,
     n=1,
     temperature=1,
@@ -89,14 +91,14 @@ def chatgpt_request(
     )
 
 
-def num_tokens_from_string(string, model="gpt-3.5-turbo"):
+def num_tokens_from_string(string, model=DEFAULT_MODEL):
     """Returns the number of tokens in a text string."""
     encoding = tiktoken.encoding_for_model(model)
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
 
-def num_tokens_from_messages(messages, model="gpt-3.5-turbo"):
+def num_tokens_from_messages(messages, model=DEFAULT_MODEL):
     """Returns the number of tokens used by a list of messages."""
     try:
         encoding = tiktoken.encoding_for_model(model)
@@ -144,6 +146,8 @@ def estimate_prompt_cost(message, model):
         "gpt-4-32k-0613": 60,
         "gpt-4o": 5,
         "gpt-4o-2024-05-13": 5,
+        "gpt-4o-mini": 0.15,
+        "gpt-4o-mini-2024-07-18": 0.15,
     }
 
     return estimated_cost(num_tokens, prices[model])

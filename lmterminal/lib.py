@@ -5,18 +5,20 @@ from pathlib import Path
 
 import click
 import openai
-from lmterminal import gpt_integration as openai_utils
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
+
+from lmterminal import gpt_integration as openai_utils
 
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
-DEFAULT_MODEL = "gpt-3.5-turbo"
+
+DEFAULT_MODEL = "gpt-4o-mini"
 
 
 def prepare_and_generate_response(
@@ -144,7 +146,7 @@ def get_markdown_inline_code_theme() -> str:
 
 
 def generate_response(
-    model: str = "gpt-3.5-turbo",
+    model: str = DEFAULT_MODEL,
     prompt: str = None,
     raw: bool = False,
     stream: bool = True,
