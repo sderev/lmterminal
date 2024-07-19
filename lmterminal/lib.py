@@ -252,7 +252,7 @@ def display_tokens_count_and_cost(prompt, model):
     """
     full_prompt = prompt[0]["content"] + prompt[1]["content"]
     number_of_tokens = openai_utils.num_tokens_from_string(full_prompt, model)
-    cost = openai_utils.estimate_prompt_cost(prompt)[model]
+    cost = openai_utils.estimate_prompt_cost(prompt, model)
 
     click.echo(
         "Number of tokens in the prompt:" f" {click.style(str(number_of_tokens), fg='yellow')}."
