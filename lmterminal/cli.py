@@ -5,7 +5,7 @@ import sys
 import click
 from click_default_group import DefaultGroup
 
-from .lib import *
+from .lib import edit_key, prepare_and_generate_response, set_key
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
