@@ -4,9 +4,10 @@ import sys
 
 import click
 from click_default_group import DefaultGroup
+from lmterminal import DEFAULT_MODEL
 
 from .lib import edit_key, prepare_and_generate_response, set_key
-from .templates import TEMPLATES_DIR, get_default_template_file_path
+from .templates import TEMPLATES_DIR, get_starter_template_file_path, get_template_names
 
 VALID_MODELS = {
     "gpt-3.5-turbo": (
@@ -29,6 +30,12 @@ VALID_MODELS = {
     ),
     "gpt-4o": ("4o",),
     "gpt-4o-2024-05-13": None,
+    "gpt-4o-mini": (
+        "4o-mini",
+        "4omini",
+        "4om",
+    ),
+    "gpt-4o-mini-2024-07-18": None,
 }
 
 

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import click
 import yaml
+from lmterminal import DEFAULT_MODEL
 
 
 def handle_template(template: str, system: str, prompt_input: str, model: str) -> tuple:
