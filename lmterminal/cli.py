@@ -7,7 +7,7 @@ from click_default_group import DefaultGroup
 from lmterminal import DEFAULT_MODEL
 
 from .lib import edit_key, prepare_and_generate_response, set_key
-from .templates import TEMPLATES_DIR, get_starter_template_file_path, get_template_names
+from .templates import TEMPLATES_DIR, get_template_names
 
 VALID_MODELS = {
     "gpt-3.5-turbo": (
@@ -100,6 +100,7 @@ def lmt():
     "--template",
     "-t",
     help="The template to use for the requests.",
+    shell_complete=get_template_names,
 )
 @click.option(
     "--system",
@@ -266,13 +267,13 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates_names_list = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
-    if templates_names_list:
-        click.echo("\n".join(templates_names_list))
+    template_names = get_template_names()
+    if template_names:
+        click.echo("\n".join(template_names))
 
 
 @templates.command("view")
-@click.argument("template")
+@click.argument("template", type=click.STRING, shell_complete=get_template_names)
 def view_template(template):
     """
     View a template.
@@ -284,7 +285,7 @@ def view_template(template):
 
 
 @templates.command()
-@click.argument("template")
+@click.argument("template", type=click.STRING, shell_complete=get_template_names)
 def edit(template):
     """
     Edit a template.
@@ -351,7 +352,7 @@ def add_template(template):
 
 
 @templates.command("delete")
-@click.argument("template", required=True)
+@click.argument("template", required=True, type=click.STRING, shell_complete=get_template_names)
 def delete_template(template):
     """
     Delete the template.
@@ -375,7 +376,7 @@ def delete_template(template):
 
 
 @templates.command("rename")
-@click.argument("template", required=True)
+@click.argument("template", required=True, type=click.STRING, shell_complete=get_template_names)
 def rename_template(template):
     """
     Rename the template.
