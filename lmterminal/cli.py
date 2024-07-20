@@ -274,10 +274,12 @@ def models():
     """
     for model, aliases in VALID_MODELS.items():
         click.echo(model)
-        if aliases:
-            if len(aliases) == 1:
-                click.echo(f"  Alias: {aliases[0]}")
+        if len(aliases) == 1:
+            click.echo(f"  Alias: {aliases[0]}")
+        elif len(aliases) > 1:
             click.echo(f"  Aliases: {', '.join(aliases)}")
+        else:
+            pass
 
 
 @lmt.group()
