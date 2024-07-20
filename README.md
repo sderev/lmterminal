@@ -31,9 +31,9 @@ LMterminal (`lmt`) is a CLI tool that enables you to interact directly with Open
 
 ## Features
 
-* **Access All ChatGPT Models**: `lmt` supports all available ChatGPT models (gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, gpt-4-32k), giving you the power to choose the most suitable one for your task.
-* **Custom Templates**: Design your own toolbox of templates to streamline your workflow.
-* **Read File**: Incorporate file content into your prompts seamlessly.
+* **Access All ChatGPT Models**: `lmt` supports all available ChatGPT models (gpt-3.5-turbo, gpt-4, gpt-4-turbo, gpt-4o, gpt-4o-mini).
+* **Custom Templates**: Design your own toolbox of templates to customize your workflow.
+* **Read File**: Incorporate file content into your prompts via a pipe command.
 * **Output to a File**: Redirect standard output (`stdout`) to a file or another program as needed.
 * **Easy Vim Integration**: Integrate ChatGPT into Vim by using `lmt` as a filter command.
 
