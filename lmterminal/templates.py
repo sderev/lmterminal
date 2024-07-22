@@ -58,20 +58,23 @@ def get_templates_dir() -> Path:
     return templates_dir
 
 
-def get_default_template_file_path() -> Path:
+def get_starter_template_file_path() -> Path:
     """
     Returns the path to the default template file.
+
+    Returns:
+        Path: The path object representing the starter template file.
     """
-    default_dir = Path.home() / ".config" / "lmt" / "default"
-    default_dir.mkdir(parents=True, exist_ok=True)
+    starter_template_dir = Path.home() / ".config" / "lmt" / "templates" / "starter"
+    starter_template_dir.mkdir(parents=True, exist_ok=True)
 
-    default_template_file = default_dir / "template.yaml"
-    if not default_template_file.exists():
-        default_template = read_text("lmt_cli.templates", "default.yaml")
-        with open(default_template_file, "w", encoding="UTF-8") as file:
-            file.write(default_template)
+    starter_template_path = starter_template_dir / "starter_template.yaml"
+    if not starter_template_path.exists():
+        starter_template_content = read_text("lmterminal.starter_template", "starter_template.yaml")
+        with open(starter_template_path, "w", encoding="UTF-8") as file:
+            file.write(starter_template_content)
 
-    return default_template_file
+    return starter_template_path
 
 
 def get_template_names(ctx=None, param=None, incomplete=None) -> List[str]:
