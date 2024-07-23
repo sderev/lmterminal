@@ -5,15 +5,14 @@ from pathlib import Path
 
 import click
 import openai
+from lmterminal import gpt_integration as openai_utils
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
 
-from lmterminal import gpt_integration as openai_utils
-
-from .templates import handle_template
 from lmterminal import DEFAULT_MODEL
+from .templates import prepare_prompt_from_template
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
@@ -39,13 +38,9 @@ def prepare_and_generate_response(
         system = ""
 
     if template:
-        system, prompt_input, template_model = handle_template(
-            template, system, prompt_input, model
+        system, prompt_input, template_model = prepare_prompt_from_template(
+            template=template, system=system, user_prompt=prompt_input, model=model
         )
-        # If a model name is given in the options,
-        # it will bypass the model name in the template.
-        if model == DEFAULT_MODEL:
-            model = template_model
 
     if emoji:
         system = add_emoji(system)
