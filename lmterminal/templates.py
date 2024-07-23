@@ -1,33 +1,49 @@
 import sys
 from importlib.resources import read_text
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import click
 import yaml
 from lmterminal import DEFAULT_MODEL
 
 
-def handle_template(template: str, system: str, prompt_input: str, model: str) -> tuple:
+def prepare_prompt_from_template(
+    *, template: str, system: str, user_prompt: str, model: str
+) -> Tuple[str, str, str]:
     """
-    Handles the template used for the prompt.
+    Prepares a prompt by applying a template and updating system and user content.
+
+    This allows to append additional system instructions and user content to the template.
+
+    Args:
+        template (str): The name of the template to use.
+        system (str): The system instructions to incorporate into the template.
+        user_prompt (str): The user's prompt to incorporate into the template.
+        model (str): The model to use.
+
+    Returns:
+        Tuple[str, str, str]: Updated system content, updated user prompt, and model.
     """
     template_content = get_template_content(template)
-    system = update_from_template(template_content, "system", system)
-    prompt_input = update_from_template(template_content, "user", prompt_input)
-    model_template = template_content.get("model", model) or model
 
-    return system, prompt_input, model_template
+    def update_content(key: str, content: Optional[str]) -> str:
+        existing_value = template_content.get(key, "")
+        if existing_value is None:
+            existing_value = ""
+        return existing_value.rstrip() + (content or "")
 
+    updated_system = update_content("system", system)
+    updated_user_prompt = update_content("user", user_prompt)
 
-def update_from_template(template_content, key, value):
-    """
-    Updates the value of a key from a template.
-    """
-    existing_value = template_content.setdefault(key, "")
-    if existing_value is None:
-        template_content[key] = existing_value = ""
+    # If a specific model name is given in the options (different from the global default model),
+    # it will override the default model specified in the template.
+    if model != DEFAULT_MODEL:
+        updated_model = model
+    else:
+        updated_model = template_content.get("model", model) or DEFAULT_MODEL
 
-    return existing_value.rstrip() + (value or "")
+    return updated_system, updated_user_prompt, updated_model
 
 
 def get_template_content(template):
