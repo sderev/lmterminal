@@ -280,7 +280,7 @@ def view_template(template):
     """
     View a template.
     """
-    template = get_templates_dir() / f"{template}.yaml"
+    template = TEMPLATES_DIR / f"{template}.yaml"
     if template.exists():
         with open(template, "r", encoding="UTF-8") as template_file:
             click.echo(template_file.read())
@@ -292,7 +292,7 @@ def edit(template):
     """
     Edit a template.
     """
-    template_file = get_templates_dir() / f"{template}.yaml"
+    template_file = TEMPLATES_DIR / f"{template}.yaml"
     if template_file.exists():
         original_file_content = template_file.read_text()
         click.edit(filename=template_file)
@@ -321,10 +321,8 @@ def add_template(template):
     """
     Create a new template
     """
-    templates_dir = get_templates_dir()
     if not template:
         template = click.prompt("Template name")
-        if template in [template.name for template in templates_dir.iterdir()]:
             click.echo(
                 click.style("Error: ", fg="red")
                 + f"Template {click.style(template, fg='red')} already exists."
@@ -334,8 +332,9 @@ def add_template(template):
             )
             return
 
-    template_file = templates_dir / f"{template}.yaml"
     default_template_file_path = get_default_template_file_path()
+    if template in [template.stem for template in TEMPLATES_DIR.iterdir()]:
+    template_file = TEMPLATES_DIR / f"{template}.yaml"
 
     shutil.copyfile(default_template_file_path, template_file)
 
@@ -360,7 +359,7 @@ def delete_template(template):
     """
     Delete the template.
     """
-    template_file = get_templates_dir() / f"{template}.yaml"
+    template_file = TEMPLATES_DIR / f"{template}.yaml"
     if template_file.exists():
         click.confirm(
             f"Are you sure you want to delete the template '{template}'?",
@@ -384,10 +383,9 @@ def rename_template(template):
     """
     Rename the template.
     """
-    template_file = get_templates_dir() / f"{template}.yaml"
     if template_file.exists():
+    template_file = TEMPLATES_DIR / f"{template}.yaml"
         new_template_name = click.prompt("New template name", default=template)
-        new_template_file = get_templates_dir() / new_template_name
         template_file.rename(new_template_file)
         click.echo(
             f"{click.style('Success!', fg='green')} Template"
@@ -396,6 +394,7 @@ def rename_template(template):
         )
     else:
         click.echo(click.style("Error: ", fg="red") + f"The template '{template}' does not exist.")
+        new_template_file = TEMPLATES_DIR / f"{new_template_name}.yaml"
 
 
 @lmt.group()
