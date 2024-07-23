@@ -46,9 +46,12 @@ def prepare_prompt_from_template(
     return updated_system, updated_user_prompt, updated_model
 
 
-def get_template_content(template):
+def get_template_content(template: str) -> Dict[str, Optional[str]]:
     """
     Reads the template YAML file and returns a dictionary with its content.
+
+    Returns:
+        Dict[str, Optional[str]]: The template content.
     """
     template_file = get_templates_dir() / f"{template}.yaml"
 
@@ -68,6 +71,11 @@ def get_template_content(template):
 def get_templates_dir() -> Path:
     """
     Returns the path to the templates directory.
+
+    Creates the templates directory if it does not exist.
+
+    Returns:
+        Path: The path object representing the templates directory.
     """
     templates_dir = Path.home() / ".config" / "lmt" / "templates"
     templates_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +107,7 @@ def get_template_names(ctx=None, param=None, incomplete=None) -> List[str]:
 
     This function can be used for shell completion.
     The arguments are only used for shell completion; they are given by `Click`.
- 
+
     Args:
         ctx: Click context.
         param: Click parameter.
