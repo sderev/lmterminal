@@ -29,6 +29,7 @@ VALID_MODELS = {
     ),
     "gpt-4o": ("4o",),
     "gpt-4o-2024-05-13": None,
+    "gpt-4o-2024-08-06": None,
     "gpt-4o-mini": (
         "4o-mini",
         "4omini",

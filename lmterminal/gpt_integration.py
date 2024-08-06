@@ -146,6 +146,7 @@ def estimate_prompt_cost(message, model):
         "gpt-4-32k-0613": 60,
         "gpt-4o": 5,
         "gpt-4o-2024-05-13": 5,
+        "gpt-4o-2024-08-06": 2.5,
         "gpt-4o-mini": 0.15,
         "gpt-4o-mini-2024-07-18": 0.15,
     }
