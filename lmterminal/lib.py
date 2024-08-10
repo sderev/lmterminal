@@ -250,21 +250,21 @@ def display_debug_information(prompt, model, temperature):
 
 def display_tokens_count_and_cost(prompt, model):
     """
-    Displays the number of tokens in the prompt and the cost of the prompt.
+    Displays the number of tokens for the input tokens and the associated API cost.
     """
     full_prompt = prompt[0]["content"] + prompt[1]["content"]
     number_of_tokens = openai_utils.num_tokens_from_string(full_prompt, model)
     cost = openai_utils.estimate_prompt_cost(prompt, model)
 
     click.echo(
-        "Number of tokens in the prompt:" f" {click.style(str(number_of_tokens), fg='yellow')}."
+        "Number of tokens in the input text:" f" {click.style(str(number_of_tokens), fg='yellow')}."
     )
     click.echo(
-        f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
+        f"Cost of the prompt for the {click.style(model, fg='blue')} model would be:"
         f" {click.style(f'${cost}', fg='yellow')}."
     )
     click.echo(
-        "Please note that this cost applies only to the prompt, not the" " subsequent response."
+        "Please note that this cost applies only to the input tokens, not the output response."
     )
     sys.exit(0)
 
