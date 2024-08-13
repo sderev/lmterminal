@@ -11,7 +11,6 @@ from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
     "gpt-3.5-turbo": (
-        "chatgpt",
         "3.5",
     ),
     "gpt-3.5-turbo-instruct": None,
