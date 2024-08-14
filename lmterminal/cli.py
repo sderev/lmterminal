@@ -10,9 +10,7 @@ from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = {
-    "gpt-3.5-turbo": (
-        "3.5",
-    ),
+    "gpt-3.5-turbo": ("3.5",),
     "gpt-3.5-turbo-instruct": None,
     "gpt-4": (
         "4",
