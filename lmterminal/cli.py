@@ -36,6 +36,7 @@ VALID_MODELS = {
         "4om",
     ),
     "gpt-4o-mini-2024-07-18": None,
+    "chatgpt-4o-latest": None,
 }
 
 

@@ -5,12 +5,11 @@ from pathlib import Path
 
 import click
 import openai
+from lmterminal import gpt_integration as openai_utils
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
-
-from lmterminal import gpt_integration as openai_utils
 
 from .templates import handle_template
 
@@ -253,6 +252,12 @@ def display_tokens_count_and_cost(prompt, model):
     Displays the number of tokens in the prompt and the cost of the prompt.
     """
     full_prompt = prompt[0]["content"] + prompt[1]["content"]
+
+    # The model name `chatgpt-4o-latest` is not found in the `tiktoken` OpenAI API (as of 2024-08-14).
+    # Since it's a `gpt-4o` variant anyway, we can just use `gpt-4o`.
+    if model == "chatgpt-4o-latest":
+        model = "gpt-4o"
+
     number_of_tokens = openai_utils.num_tokens_from_string(full_prompt, model)
     cost = openai_utils.estimate_prompt_cost(prompt, model)
 
