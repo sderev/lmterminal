@@ -51,7 +51,7 @@ def chatgpt_request(
         # max_tokens=max_tokens,
         n=n,
         temperature=temperature,
-        stop=stop,
+        # stop=stop,
         stream=stream,
     )
 
@@ -151,6 +151,10 @@ def estimate_prompt_cost(message, model):
         "gpt-4o-mini": 0.15,
         "gpt-4o-mini-2024-07-18": 0.15,
         "chatgpt-4o-latest": 2.5,
+        "o1-preview": 15,
+        "o1-preview-2024-09-12": 15,
+        "o1-mini": 3,
+        "o1-mini-2024-09-12": 3,
     }
 
     return estimated_cost(num_tokens, prices[model])

@@ -52,6 +52,16 @@ def prepare_and_generate_response(
 
     prompt = openai_utils.format_prompt(system, prompt_input)
 
+    # Temporary reformatting of the prompt for `o1` models
+    # as they don't support system messages yet.
+    if "o1" in model:
+        prompt = [
+            {
+                "role": "user",
+                "content": prompt_input,
+            },
+        ]
+
     if debug:
         display_debug_information(prompt, model, temperature)
 

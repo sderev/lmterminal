@@ -38,6 +38,10 @@ VALID_MODELS = {
     ),
     "gpt-4o-mini-2024-07-18": None,
     "chatgpt-4o-latest": None,
+    "o1-preview": None,
+    "o1-preview-2024-09-12": None,
+    "o1-mini": None,
+    "o1-mini-2024-09-12": None,
 }
 
 
