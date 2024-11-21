@@ -91,5 +91,4 @@ Now that the `o1` model is out of its preview, there are new endpoints:
 
 ## Changed
 
-* The names of the OpenAI models have been modified following the changes made on
-November 6th 2023.
+* The names of the OpenAI models have been modified following the changes made on November 6th 2023.
