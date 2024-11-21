@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-VERSION = "0.0.38"
+VERSION = "0.0.39"
 
 
 def read_requirements():
@@ -15,7 +15,7 @@ def get_long_description():
 
 setup(
     name="LMterminal",
-    description="Interact with OpenAI's ChatGPT models from the comfort of your terminal.",
+    description="Interact with OpenAI's models from the comfort of your terminal.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     author="Sébastien De Revière",
