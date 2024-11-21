@@ -31,7 +31,7 @@ LMterminal (`lmt`) is a CLI tool that enables you to interact directly with Open
 
 ## Features
 
-* **Access All ChatGPT Models**: `lmt` supports all available ChatGPT models (gpt-3.5-turbo, gpt-4, gpt-4-turbo, gpt-4o, gpt-4o-mini).
+* **Access OpenAI Models**: Run `lmt models` to see the list of available models.
 * **Custom Templates**: Design your own toolbox of templates to customize your workflow.
 * **Read File**: Incorporate file content into your prompts via a pipe command.
 * **Output to a File**: Redirect standard output (`stdout`) to a file or another program as needed.
