@@ -1,16 +1,15 @@
 import json
-import os
 import sys
 from pathlib import Path
 
 import click
 import openai
-from lmterminal import gpt_integration as openai_utils
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
 
+from . import gpt_integration as openai_utils
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
