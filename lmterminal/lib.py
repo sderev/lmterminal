@@ -260,7 +260,12 @@ def display_tokens_count_and_cost(prompt, model):
     """
     Displays the number of tokens in the prompt and the cost of the prompt.
     """
-    full_prompt = prompt[0]["content"] + prompt[1]["content"]
+    # If the model is of the `o1` variant, it will ignore the system message.
+    # This is a temporary solution until the `o1` models support system messages.
+    if "o1" in model:
+        full_prompt = prompt[0]["content"]
+    else:
+        full_prompt = prompt[0]["content"] + prompt[1]["content"]
 
     # The model name `chatgpt-4o-latest` is not found in the `tiktoken` OpenAI API (as of 2024-08-14).
     # Since it's a `gpt-4o` variant anyway, we can just use `gpt-4o`.
