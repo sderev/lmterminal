@@ -85,7 +85,7 @@ def add_emoji(system: str) -> str:
     Adds an emoji to the system message.
     """
     emoji_message = (
-        "Add plenty of emojis as a colorful way to convey emotions. However, don't" " mention it."
+        "Add plenty of emojis as a colorful way to convey emotions. However, don't mention it."
     )
     system = system.rstrip()
 
@@ -276,14 +276,14 @@ def display_tokens_count_and_cost(prompt, model):
     cost = openai_utils.estimate_prompt_cost(prompt, model)
 
     click.echo(
-        "Number of tokens in the prompt:" f" {click.style(str(number_of_tokens), fg='yellow')}."
+        f"Number of tokens in the prompt: {click.style(str(number_of_tokens), fg='yellow')}."
     )
     click.echo(
         f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
         f" {click.style(f'${cost}', fg='yellow')}."
     )
     click.echo(
-        "Please note that this cost applies only to the prompt, not the" " subsequent response."
+        "Please note that this cost applies only to the prompt, not the subsequent response."
     )
     sys.exit(0)
 

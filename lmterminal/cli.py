@@ -315,9 +315,7 @@ def edit(template):
             click.style("Error: ", fg="red")
             + f"Template {click.style(template, fg='red')} does not exist."
         )
-        click.echo(
-            f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to" " create it."
-        )
+        click.echo(f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to create it.")
 
 
 @templates.command("add")
@@ -334,7 +332,7 @@ def add_template(template):
                 + f"Template {click.style(template, fg='red')} already exists."
             )
             click.echo(
-                f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to" " edit it."
+                f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to edit it."
             )
             return
 
