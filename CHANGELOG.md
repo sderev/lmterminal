@@ -1,14 +1,25 @@
+# 2025-01-11
+
+## Added
+
+Now that the `o1` model is out of its preview, there are new endpoints:
+* `o1`
+* `o1-2024-12-17`
+
+## Fixed
+
+* The `--tokens` option now work correctly for the `o1` models. As of now, they don't accept a `system` message in the prompt, which was causing an error when estimating the cost of the tokens input.
+
 # 2024-11-21
 
 ## Added
 
-* Add new OpenAI model endpoint: `gpt-4o-2024-11-20`.
-
 * Add OpenAI models endpoints:
-    - `o1-preview`
-    - ` o1-preview-2024-09-12`
-    - `o1-mini`
-    - `o1-mini-2024-09-12`
+    * `gpt-4o-2024-11-20`
+    * `o1-preview`
+    * ` o1-preview-2024-09-12`
+    * `o1-mini`
+    * `o1-mini-2024-09-12`
 
 # 2024-09-30
 
