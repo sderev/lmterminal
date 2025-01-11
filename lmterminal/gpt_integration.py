@@ -151,6 +151,8 @@ def estimate_prompt_cost(message, model):
         "gpt-4o-mini": 0.15,
         "gpt-4o-mini-2024-07-18": 0.15,
         "chatgpt-4o-latest": 2.5,
+        "o1": 15,
+        "o1-2024-12-17": 15,
         "o1-preview": 15,
         "o1-preview-2024-09-12": 15,
         "o1-mini": 3,
