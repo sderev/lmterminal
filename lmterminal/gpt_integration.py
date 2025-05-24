@@ -129,7 +129,7 @@ def estimate_prompt_cost(message, model):
     """Returns the estimated cost of a prompt."""
     num_tokens = num_tokens_from_messages(message, model)
 
-    # Prices in USD per 1M tokens
+    # Prices in USD per 1M input tokens
     prices = {
         "gpt-3.5-turbo": 0.50,
         "gpt-3.5-turbo-0125": 0.50,
@@ -144,19 +144,32 @@ def estimate_prompt_cost(message, model):
         "gpt-4-0125-preview": 10,
         "gpt-4-32k": 60,
         "gpt-4-32k-0613": 60,
-        "gpt-4o": 2.5,
+        "gpt-4o": 2.50,
         "gpt-4o-2024-05-13": 5,
-        "gpt-4o-2024-08-06": 2.5,
-        "gpt-4o-2024-11-20": 2.5,
+        "gpt-4o-2024-08-06": 2.50,
+        "gpt-4o-2024-11-20": 2.50,
         "gpt-4o-mini": 0.15,
         "gpt-4o-mini-2024-07-18": 0.15,
-        "chatgpt-4o-latest": 2.5,
+        "chatgpt-4o-latest": 5,
         "o1": 15,
         "o1-2024-12-17": 15,
         "o1-preview": 15,
         "o1-preview-2024-09-12": 15,
         "o1-mini": 3,
         "o1-mini-2024-09-12": 3,
+        "gpt-4.1": 2,
+        "gpt-4.1-2025-04-14": 2,
+        "gpt-4.1-mini": 0.40,
+        "gpt-4.1-mini-2025-04-14": 0.40,
+        "gpt-4.1-nano": 0.1,
+        "gpt-4.1-nano-2025-04-14": 0.10,
+        "gpt-4.5-preview": 75,
+        "o3": 10,
+        "o3-2025-04-16": 10,
+        "o3-mini": 1.10,
+        "o3-mini-2025-01-31": 1.10,
+        "o4-mini": 1.10,
+        "o4-mini-2025-04-16": 1.10,
     }
 
     return estimated_cost(num_tokens, prices[model])

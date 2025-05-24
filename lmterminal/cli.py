@@ -44,6 +44,19 @@ VALID_MODELS = {
     "o1-preview-2024-09-12": None,
     "o1-mini": None,
     "o1-mini-2024-09-12": None,
+    "gpt-4.1": ("4.1",),
+    "gpt-4.1-2025-04-14": None,
+    "gpt-4.1-mini": ("4.1-mini",),
+    "gpt-4.1-mini-2025-04-14": None,
+    "gpt-4.1-nano": ("4.1-nano",),
+    "gpt-4.1-nano-2025-04-14": None,
+    "gpt-4.5-preview": None,
+    "o3": None,
+    "o3-2025-04-16": None,
+    "o3-mini": None,
+    "o3-mini-2025-01-31": None,
+    "o4-mini": None,
+    "o4-mini-2025-04-16": None,
 }
 
 
