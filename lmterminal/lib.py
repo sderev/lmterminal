@@ -10,13 +10,7 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.theme import Theme
 
-<<<<<<< HEAD
 from . import gpt_integration as openai_utils
-||||||| parent of c26b7cc (Add `chatgpt-4o-latest` model support)
-from lmterminal import gpt_integration as openai_utils
-
-=======
->>>>>>> c26b7cc (Add `chatgpt-4o-latest` model support)
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
