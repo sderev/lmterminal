@@ -1,6 +1,12 @@
 
 # 2025-05-25
 
+## Fixed
+
+`lmt templates edit` and `lmt templates add` are now working correctly again.
+
+# 2025-05-25
+
 ## Added
 
 Models below are now available:
