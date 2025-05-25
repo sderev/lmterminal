@@ -313,7 +313,7 @@ def edit(template):
     template_file = TEMPLATES_DIR / f"{template}.yaml"
     if template_file.exists():
         original_file_content = template_file.read_text()
-        click.edit(filename=template_file)
+        click.edit(filename=str(template_file))
 
         if original_file_content == template_file.read_text():
             click.echo("No changes were made.")
@@ -354,7 +354,7 @@ def add_template(template):
 
     shutil.copyfile(default_template_file, template_file)
 
-    click.edit(filename=template_file)
+    click.edit(filename=str(template_file))
 
     if filecmp.cmp(default_template_file, template_file, shallow=False):
         click.echo(
