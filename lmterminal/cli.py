@@ -57,6 +57,13 @@ VALID_MODELS = {
     "o3-mini-2025-01-31": None,
     "o4-mini": None,
     "o4-mini-2025-04-16": None,
+    "gpt-5": (
+        "5",
+        "gpt5",
+    ),
+    "gpt-5-mini": ("5-mini",),
+    "gpt-5-nano": ("5-nano",),
+    "gpt-5-chat-latest": None,
 }
 
 

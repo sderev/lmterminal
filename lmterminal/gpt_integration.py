@@ -173,6 +173,10 @@ def estimate_prompt_cost(message, model):
         "o3-mini-2025-01-31": 1.10,
         "o4-mini": 1.10,
         "o4-mini-2025-04-16": 1.10,
+        "gpt-5": 1.25,
+        "gpt-5-mini": 0.25,
+        "gpt-5-nano": 0.05,
+        "gpt-5-chat-latest": 1.25,
     }
 
     return estimated_cost(num_tokens, prices[model])
