@@ -9,7 +9,7 @@ BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5-nano"
 
 
 def format_prompt(system_content, user_content):

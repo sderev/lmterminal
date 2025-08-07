@@ -16,7 +16,7 @@ BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5-nano"
 
 
 def prepare_and_generate_response(
