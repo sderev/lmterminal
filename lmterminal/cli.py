@@ -258,7 +258,7 @@ def prompt(
     )
 
     # Same as above (readibility), but after the LLM's response
-    if sys.stdout.isatty():
+    if sys.stdout.isatty() and not no_stream:
         click.echo()
 
 

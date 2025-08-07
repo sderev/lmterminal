@@ -209,7 +209,7 @@ def generate_response(
             #############################
 
             if not stream:
-                print(content)
+                print(content, end="")
 
         except openai.error.RateLimitError as error:
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
