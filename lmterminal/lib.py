@@ -166,7 +166,8 @@ def generate_response(
     openai.api_key = get_api_key()
 
     if not openai.api_key:
-        click.echo(f"{click.style('Error:', fg='red')} You need to set your OpenAI API key.")
+        click.secho("Error:", fg="red", nl=False)
+        click.echo(" You need to set your OpenAI API key.")
         click.echo("You can do so by running:", nl=False)
         click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
         sys.exit(1)
@@ -234,25 +235,26 @@ def display_debug_information(prompt, model, temperature):
     """
     Displays debug information.
     """
-    click.echo("---\n" + click.style("Debug information:", fg="yellow"), err=True)
+    click.echo("---", err=True)
+    click.secho("Debug information:", fg="yellow", err=True)
     click.echo(err=True)
 
-    click.echo(click.style("Prompt:", fg="red"), nl=False, err=True)
+    click.secho("Prompt:", fg="red", nl=False, err=True)
     for role in prompt:
         click.echo(err=True)
-        click.echo(click.style(f"{role['role']}:", fg="blue"), err=True)
+        click.secho(f"{role['role']}:", fg="blue", err=True)
         click.echo(f"{role}", err=True)
     click.echo(err=True)
 
-    click.echo(click.style("Model:", fg="red"), err=True)
+    click.secho("Model:", fg="red", err=True)
     click.echo(f"{model=}", err=True)
     click.echo(err=True)
 
-    click.echo(click.style("Temperature:", fg="red"), err=True)
+    click.secho("Temperature:", fg="red", err=True)
     click.echo(f"{temperature=}", err=True)
     click.echo(err=True)
 
-    click.echo(click.style("End of debug information.", fg="yellow"), err=True)
+    click.secho("End of debug information.", fg="yellow", err=True)
     click.echo("---\n", err=True)
 
 
@@ -324,13 +326,15 @@ def set_key() -> None:
     key_path = get_api_key_path()
     key = get_api_key()
     if key:
-        click.echo(click.style("Error: ", fg="red") + "API key already exists.")
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("API key already exists.")
         click.echo(f"Use `{click.style('lmt key edit', fg='blue')}` to edit it.")
         return
 
     key = click.prompt("Your OpenAI API key", hide_input=True)
     write_key(key)
-    click.echo(f"{click.style('Success!', fg='green')} API key added.")
+    click.secho("Success!", fg="green", nl=False)
+    click.echo(" API key added.")
     click.echo(f"\nThe API key is stored in {key_path}.")
 
 
@@ -341,7 +345,8 @@ def edit_key() -> None:
     key_file_path = get_api_key_path()
     key = get_api_key()
     if not key:
-        click.echo(click.style("Error: ", fg="red") + "API key does not exist.")
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("API key does not exist.")
         click.echo("You will now be prompted to add it.\n")
         set_key()
         return
@@ -350,7 +355,8 @@ def edit_key() -> None:
     new_key = click.prompt("Your OpenAI API key", hide_input=True)
     if original_key != new_key:
         write_key(new_key)
-        click.echo(f"{click.style('Success!', fg='green')} API key was updated.")
+        click.secho("Success!", fg="green", nl=False)
+        click.echo(" API key was updated.")
     else:
         click.echo("No changes were made.")
     click.echo(f"\nThe API key is stored in {key_file_path}.")

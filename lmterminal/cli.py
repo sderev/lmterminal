@@ -213,17 +213,14 @@ def prompt(
             )
 
             if sys.stdout.isatty():
-                click.echo(click.style(input_prompt_instructions, fg="yellow"))
+                click.secho(input_prompt_instructions, fg="yellow")
                 click.echo("---")
 
             # Display instructions in the terminal only, not in redirected or piped output.
             # This ensures the user sees the instructions without affecting the file output.
             if not sys.stdout.isatty():
                 with open("/dev/tty", "w", encoding="UTF-8") as output_stream:
-                    click.echo(
-                        click.style(input_prompt_instructions, fg="yellow"),
-                        file=output_stream,
-                    )
+                    click.secho(input_prompt_instructions, fg="yellow", file=output_stream)
                     click.echo("---", file=output_stream)
 
             # Read user input from stdin
@@ -331,10 +328,10 @@ def edit(template):
             )
 
     else:
-        click.echo(
-            click.style("Error: ", fg="red")
-            + f"Template {click.style(template, fg='red')} does not exist."
-        )
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("Template ", nl=False)
+        click.secho(template, fg="red", nl=False)
+        click.echo(" does not exist.")
         click.echo(f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to create it.")
 
 
@@ -347,10 +344,10 @@ def add_template(template):
     if not template:
         template = click.prompt("Template name")
         if template in [template.name for template in TEMPLATES_DIR.iterdir()]:
-            click.echo(
-                click.style("Error: ", fg="red")
-                + f"Template {click.style(template, fg='red')} already exists."
-            )
+            click.secho("Error: ", fg="red", nl=False)
+            click.echo("Template ", nl=False)
+            click.secho(template, fg="red", nl=False)
+            click.echo(" already exists.")
             click.echo(
                 f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to edit it."
             )
@@ -364,10 +361,8 @@ def add_template(template):
     click.edit(filename=str(template_file))
 
     if filecmp.cmp(default_template_file, template_file, shallow=False):
-        click.echo(
-            click.style("Aborting: ", fg="red")
-            + "The template has not been created because no changes were made."
-        )
+        click.secho("Aborting: ", fg="red", nl=False)
+        click.echo("The template has not been created because no changes were made.")
         template_file.unlink()
     else:
         click.echo(
@@ -394,10 +389,10 @@ def delete_template(template):
             f" '{click.style(template, fg='blue')}' deleted."
         )
     else:
-        click.echo(
-            click.style("Error: ", fg="red")
-            + f"The template '{click.style(template, fg='red')}' does not exist."
-        )
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("The template '", nl=False)
+        click.secho(template, fg="red", nl=False)
+        click.echo("' does not exist.")
 
 
 @templates.command("rename")
@@ -417,7 +412,8 @@ def rename_template(template):
             f" '{click.style(new_template_name, fg='green')}'."
         )
     else:
-        click.echo(click.style("Error: ", fg="red") + f"The template '{template}' does not exist.")
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo(f"The template '{template}' does not exist.")
 
 
 @lmt.group()

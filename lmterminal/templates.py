@@ -38,10 +38,10 @@ def get_template_content(template):
         with open(template_file, "rt", encoding="UTF-8") as file:
             template_content = yaml.safe_load(file)
     except FileNotFoundError:
-        click.echo(
-            click.style("Error: ", fg="red")
-            + f"The template '{click.style(template, fg='red')}' does not exist."
-        )
+        click.secho("Error: ", fg="red", nl=False)
+        click.echo("The template '", nl=False)
+        click.secho(template, fg="red", nl=False)
+        click.echo("' does not exist.")
         sys.exit(1)
     else:
         return template_content
