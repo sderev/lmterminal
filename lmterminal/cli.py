@@ -275,8 +275,6 @@ def models():
             click.echo(f"  Alias: {aliases[0]}")
         elif len(aliases) > 1:
             click.echo(f"  Aliases: {', '.join(aliases)}")
-        else:
-            pass
 
 
 @lmt.group()
