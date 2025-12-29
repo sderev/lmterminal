@@ -1,0 +1,66 @@
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "LMterminal"
+version = "0.0.43"
+description = "Interact with OpenAI's models from the comfort of your terminal."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Sébastien De Revière" }]
+dependencies = [
+    "click",
+    "click-default-group",
+    "openai<1.0",
+    "PyYAML",
+    "rich",
+    "tiktoken",
+]
+
+[project.urls]
+Documentation = "https://github.com/sderev/lmterminal"
+Issues = "http://github.com/sderev/lmterminal/issues"
+Changelog = "https://github.com/sderev/lmterminal/releases"
+
+[project.scripts]
+lmt = "lmterminal.cli:lmt"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "scriv[toml]>=1.5.0",
+]
+
+[tool.ruff]
+line-length = 100
+lint.extend-select = ["I001"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that call external services",
+]
+
+[tool.scriv]
+version = "literal: pyproject.toml: project.version"
+format = "md"
+md_header_level = 2
+output_file = "CHANGELOG.md"
+fragment_directory = "changelog.d"
+new_fragment_template = "file: changelog.d/templates/fragment.md.j2"
+categories = [
+    "Added",
+    "Changed",
+    "Deprecated",
+    "Removed",
+    "Fixed",
+    "Security",
+]
+entry_title_template = "{{ version }} - {{ date.strftime('%Y-%m-%d') }}"
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "lmterminal"
