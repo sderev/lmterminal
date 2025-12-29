@@ -1,6 +1,0 @@
-click
-click_default_group
-openai<1.0
-PyYAML
-rich
-tiktoken
