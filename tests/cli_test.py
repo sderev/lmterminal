@@ -1,6 +1,7 @@
 import pytest
 from click.exceptions import BadParameter
 from click.testing import CliRunner
+
 from lmterminal import cli
 
 
