@@ -71,6 +71,8 @@ VALID_MODELS = {
     "gpt-5-mini": ("5-mini",),
     "gpt-5-nano": ("5-nano",),
     "gpt-5-chat-latest": None,
+    "gpt-5.1": ("5.1",),
+    "gpt-5.2": ("5.2",),
 }
 
 
