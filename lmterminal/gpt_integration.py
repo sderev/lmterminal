@@ -183,6 +183,8 @@ def estimate_prompt_cost(message, model):
         "gpt-5-mini": 0.25,
         "gpt-5-nano": 0.05,
         "gpt-5-chat-latest": 1.25,
+        "gpt-5.1": 1.25,
+        "gpt-5.2": 1.75,
     }
 
     return estimated_cost(num_tokens, prices[model])
