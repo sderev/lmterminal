@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "LMterminal"
-version = "0.0.43"
+version = "0.0.44"
 description = "Interact with OpenAI's models from the comfort of your terminal."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{ name = "Sébastien De Revière" }]
 dependencies = [
     "click",
     "click-default-group",
-    "openai<1.0",
+    "openai>=2,<3",
     "PyYAML",
     "rich",
     "tiktoken",

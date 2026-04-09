@@ -1,9 +1,19 @@
-import os
 import sys
 import time
 
 import openai
 import tiktoken
+
+_client = None
+
+
+def _get_client(api_key: str) -> openai.OpenAI:
+    """Return a reusable OpenAI client."""
+    global _client
+    if _client is None or _client.api_key != api_key:
+        _client = openai.OpenAI(api_key=api_key)
+    return _client
+
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
@@ -41,17 +51,15 @@ def chatgpt_request(
     Sends a request to the OpenAI Chat API.
     """
     start_time = time.monotonic_ns()
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    client = _get_client(api_key)
 
     # Make the API request
-    response = openai.ChatCompletion.create(
-        api_key=api_key,
+    response = client.chat.completions.create(
         messages=prompt,
         model=model,
-        # max_tokens=max_tokens,
         n=n,
         temperature=temperature,
-        # stop=stop,
         stream=stream,
     )
 
@@ -63,23 +71,22 @@ def chatgpt_request(
         # Iterate through the stream of events
         for chunk in response:
             collected_chunks.append(chunk)  # save the event response
-            chunk_message = chunk["choices"][0]["delta"]  # extract the message
-            if chunk_message is not None:
-                collected_messages.append(chunk_message)  # save the message
+            delta = chunk.choices[0].delta  # extract the delta
+            if delta.content is not None:
+                collected_messages.append(delta.content)  # save the message
 
             if update_markdown_stream:
-                update_markdown_stream(chunk_message.get("content", ""))
+                update_markdown_stream(delta.content or "")
             else:
-                print(chunk_message.get("content", ""), end="")
-        response = collected_chunks
+                print(delta.content or "", end="")
 
         # Save the time delay and text received
         response_time = (time.monotonic_ns() - start_time) / 1e9
-        generated_text = "".join([m.get("content", "") for m in collected_messages])
+        generated_text = "".join(collected_messages)
 
     else:
         # Extract and save the generated response
-        generated_text = response["choices"][0]["message"]["content"]
+        generated_text = response.choices[0].message.content
 
         # Save the time delay
         response_time = (time.monotonic_ns() - start_time) / 1e9

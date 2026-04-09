@@ -163,9 +163,9 @@ def generate_response(
     """
     Generates a response from a ChatGPT.
     """
-    openai.api_key = get_api_key()
+    api_key = get_api_key()
 
-    if not openai.api_key:
+    if not api_key:
         click.secho("Error:", fg="red", nl=False)
         click.echo(" You need to set your OpenAI API key.")
         click.echo("You can do so by running:", nl=False)
@@ -195,7 +195,7 @@ def generate_response(
 
         try:
             content, response_time, response = openai_utils.chatgpt_request(
-                api_key=openai.api_key,
+                api_key=api_key,
                 prompt=prompt,
                 model=model,
                 stream=stream,
@@ -212,15 +212,19 @@ def generate_response(
             if not stream:
                 print(content, end="")
 
-        except openai.error.RateLimitError as error:
+        except openai.RateLimitError as error:
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
             openai_utils.handle_rate_limit_error()
             sys.exit(1)
 
-        except openai.error.AuthenticationError:
+        except openai.AuthenticationError:
             openai_utils.handle_authentication_error()
             sys.stderr.write("\nYou can set your API key by running: ")
             sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
+            sys.exit(1)
+
+        except openai.APIConnectionError as error:
+            click.echo(f"{RED}Error:{RESET} {error}", err=True)
             sys.exit(1)
 
         except Exception as error:
