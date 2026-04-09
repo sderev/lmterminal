@@ -1,4 +1,14 @@
 
+## 0.0.44 - 2026-04-09
+
+### Added
+
+* `gpt-5.1` and `gpt-5.2` models.
+
+### Changed
+
+* Migrate to `openai>=2,<3` SDK (from `openai<1.0`).
+
 # 2025-05-25
 
 ## Fixed
