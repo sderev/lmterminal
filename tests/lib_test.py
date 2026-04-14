@@ -212,3 +212,23 @@ def test_generate_response_dumb_terminal_stream_falls_back_to_plain_output(monke
         (("Hel",), {"end": "", "flush": True}),
         (("lo",), {"end": "", "flush": True}),
     ]
+
+
+def test_theme_getters_fall_back_without_overwriting_invalid_config(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.json"
+    invalid_config = '{\n  "code_block_theme": "dracula",\n'
+    config_path.write_text(invalid_config, encoding="UTF-8")
+    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
+
+    assert lib.get_markdown_code_block_theme() == lib.DEFAULT_CODE_BLOCK_THEME
+    assert lib.get_markdown_inline_code_theme() == lib.DEFAULT_INLINE_CODE_THEME
+    assert config_path.read_text(encoding="UTF-8") == invalid_config
+
+
+def test_theme_getters_do_not_create_config_file_when_missing(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.json"
+    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
+
+    assert lib.get_markdown_code_block_theme() == lib.DEFAULT_CODE_BLOCK_THEME
+    assert lib.get_markdown_inline_code_theme() == lib.DEFAULT_INLINE_CODE_THEME
+    assert not config_path.exists()
