@@ -51,6 +51,15 @@ python3 -m pip install LMterminal
 pipx install LMterminal
 ```
 
+### From a Source Checkout
+
+```bash
+uv sync --group dev
+uv run lmt --help
+```
+
+Use `uv run lmt ...` from a checkout. The installed console script is `lmt`, so `uv run lmterminal ...` will fail.
+
 ## Getting Started
 
 ### Configuring your OpenAI API key
@@ -224,4 +233,4 @@ As for the inline code blocks, they can be styled with the 256 colors (names or 
 
 ___
 
-<https://github.com/sderev/lmt>
+<https://github.com/sderev/lmterminal>

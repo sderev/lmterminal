@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "LMterminal"
-version = "0.0.44"
+version = "0.0.45"
 description = "Interact with OpenAI's models from the comfort of your terminal."
 readme = "README.md"
 requires-python = ">=3.10"

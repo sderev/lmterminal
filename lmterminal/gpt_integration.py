@@ -49,6 +49,12 @@ def chatgpt_request(
 ):
     """
     Sends a request to the OpenAI Chat API.
+
+    Returns:
+        tuple[str, float, object]:
+            * generated_text
+            * response_time (seconds)
+            * raw_response (non-stream) or collected stream chunks (stream)
     """
     start_time = time.monotonic_ns()
 
@@ -78,11 +84,12 @@ def chatgpt_request(
             if update_markdown_stream:
                 update_markdown_stream(delta.content or "")
             else:
-                print(delta.content or "", end="")
+                print(delta.content or "", end="", flush=True)
 
         # Save the time delay and text received
         response_time = (time.monotonic_ns() - start_time) / 1e9
         generated_text = "".join(collected_messages)
+        response_payload = collected_chunks
 
     else:
         # Extract and save the generated response
@@ -90,11 +97,12 @@ def chatgpt_request(
 
         # Save the time delay
         response_time = (time.monotonic_ns() - start_time) / 1e9
+        response_payload = response
 
     return (
         generated_text,
         response_time,
-        response,
+        response_payload,
     )
 
 

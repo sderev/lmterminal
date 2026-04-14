@@ -1,4 +1,12 @@
 
+<a id='changelog-0.0.45'></a>
+## 0.0.45 - 2026-04-14
+
+Fixed
+-----
+* Restore streaming `chatgpt_request` payload to return collected chunks for compatibility with earlier behavior.
+* Flush raw streaming output chunks immediately so piped/non-TTY consumers observe live token delivery.
+
 ## 0.0.44 - 2026-04-09
 
 ### Added
@@ -8,6 +16,8 @@
 ### Changed
 
 * Migrate to `openai>=2,<3` SDK (from `openai<1.0`).
+
+<!-- scriv-end-here -->
 
 # 2025-05-25
 

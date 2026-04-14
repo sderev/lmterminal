@@ -185,7 +185,7 @@ def generate_response(
             nonlocal markdown_stream
             markdown_stream += chunk
             if raw:
-                print(chunk, end="")
+                print(chunk, end="", flush=True)
             else:
                 rich_markdown_stream = Markdown(
                     markdown_stream,

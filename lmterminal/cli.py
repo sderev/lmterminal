@@ -115,7 +115,7 @@ def lmt():
     """
     Talk to ChatGPT.
 
-    Documentation: https://github.com/sderev/lmt
+    Documentation: https://github.com/sderev/lmterminal
     """
 
 
