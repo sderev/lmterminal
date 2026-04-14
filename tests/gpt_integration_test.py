@@ -70,6 +70,7 @@ def test_chatgpt_request_stream_returns_collected_chunks(monkeypatch):
     assert response_payload == chunks
     assert streamed_updates == ["Hel", "", "lo"]
     assert completions.calls[0]["stream"] is True
+    assert completions.calls[0]["reasoning_effort"] == "minimal"
 
 
 def test_chatgpt_request_stream_prints_with_flush_when_no_callback(monkeypatch):
@@ -101,3 +102,25 @@ def test_chatgpt_request_stream_prints_with_flush_when_no_callback(monkeypatch):
         (("Hel",), {"end": "", "flush": True}),
         (("lo",), {"end": "", "flush": True}),
     ]
+    assert _completions.calls[0]["reasoning_effort"] == "minimal"
+
+
+def test_chatgpt_request_stream_non_gpt5_does_not_force_reasoning_effort(monkeypatch):
+    chunks = [
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="Hel"))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="lo"))]),
+    ]
+    client, completions = _build_client(iter(chunks))
+    monkeypatch.setattr(gpt_integration, "_get_client", lambda _api_key: client)
+
+    generated_text, _response_time, response_payload = gpt_integration.chatgpt_request(
+        api_key="test-key",
+        prompt=[{"role": "user", "content": "hello"}],
+        model="gpt-4o-mini",
+        stream=True,
+        update_markdown_stream=lambda _chunk: None,
+    )
+
+    assert generated_text == "Hello"
+    assert response_payload == chunks
+    assert "reasoning_effort" not in completions.calls[0]

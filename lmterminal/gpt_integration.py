@@ -20,6 +20,7 @@ RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
 DEFAULT_MODEL = "gpt-5-nano"
+STREAMING_REASONING_EFFORT = "minimal"
 
 
 def format_prompt(system_content, user_content):
@@ -60,14 +61,20 @@ def chatgpt_request(
 
     client = _get_client(api_key)
 
+    request_kwargs = {
+        "messages": prompt,
+        "model": model,
+        "n": n,
+        "temperature": temperature,
+        "stream": stream,
+    }
+    if stream and model.startswith("gpt-5"):
+        # `gpt-5*` defaults to heavier reasoning that delays the first token.
+        # Force minimal reasoning effort for streamed output so users see live updates.
+        request_kwargs["reasoning_effort"] = STREAMING_REASONING_EFFORT
+
     # Make the API request
-    response = client.chat.completions.create(
-        messages=prompt,
-        model=model,
-        n=n,
-        temperature=temperature,
-        stream=stream,
-    )
+    response = client.chat.completions.create(**request_kwargs)
 
     if stream:
         # Create variables to collect the stream of chunks
