@@ -1,6 +1,6 @@
 # LMterminal (`lmt`)
 
-LMterminal (`lmt`) is a CLI tool that enables you to interact directly with OpenAI's ChatGPT models from the comfort of your terminal.
+LMterminal (`lmt`) is a CLI tool that enables you to interact directly with OpenAI models from the comfort of your terminal.
 
 ![demo](https://github.com/sderev/lmt/assets/24412384/5cb2c7b2-7edd-4b24-919d-581e5cd7c5b5)
 
@@ -20,6 +20,7 @@ LMterminal (`lmt`) is a CLI tool that enables you to interact directly with Open
     1. [Template Utilization](#template-utilization)
     1. [Emoji Integration](#emoji-integration)
     1. [Prompt Cost Estimation](#prompt-cost-estimation)
+    1. [Reasoning Effort and Request Options](#reasoning-effort-and-request-options)
     1. [Reading from `stdin`](#reading-from-stdin)
     1. [Append an Additional Prompt to Piped `stdin`](#append-an-additional-prompt-to-piped-stdin)
     1. [Output Redirection](#output-redirection)
@@ -31,7 +32,7 @@ LMterminal (`lmt`) is a CLI tool that enables you to interact directly with Open
 
 ## Features
 
-* **Access All ChatGPT Models**: `lmt` supports all available ChatGPT models (gpt-3.5-turbo, gpt-3.5-turbo-16k, gpt-4, gpt-4-32k), giving you the power to choose the most suitable one for your task.
+* **Access Current OpenAI Models**: `lmt` supports current ChatGPT, GPT-5, Codex, and o-series models. Use `lmt models` to see the full list supported by your installed version.
 * **Custom Templates**: Design your own toolbox of templates to streamline your workflow.
 * **Read File**: Incorporate file content into your prompts seamlessly.
 * **Output to a File**: Redirect standard output (`stdout`) to a file or another program as needed.
@@ -113,20 +114,18 @@ Switching between different models is a breeze with `lmt`. Use the `-m` flag fol
 lmt "Explain what is a large language model" -m 4
 ```
 
-Below is a table outlining available model aliases for your convenience:
+Run `lmt models` to print the full list of supported model names and aliases.
+
+A few examples:
 
 | Alias | Corresponding Model |
 | --- | --- |
-| chatgpt | gpt-3.5-turbo |
-| chatgpt-16k | gpt-3.5-turbo-16k |
-| 3.5 | gpt-3.5-turbo |
-| 3.5-16k | gpt-3.5-turbo-16k |
-| 4 | gpt-4 |
-| gpt4 | gpt-4 |
-| 4-32k | gpt-4-32k |
-| gpt4-32k | gpt-4-32k |
+| `chatgpt` | `gpt-3.5-turbo` |
+| `4o` | `gpt-4o` |
+| `5` | `gpt-5` |
+| `5.4` | `gpt-5.4` |
 
-For instance, if you want to use the `gpt-4` model, simply include `-m 4` in your command.
+For instance, if you want to use `gpt-5.4`, simply include `-m 5.4` in your command.
 
 ### Template Utilization
 
@@ -157,6 +156,46 @@ To infuse a touch of emotion into your requests, append the `--emoji` flag optio
 ### Prompt Cost Estimation
 
 For an estimation of your prompt's cost before sending, utilize the `--tokens` flag option.
+
+`lmt` reports the prompt token count and the prompt-side input cost for the selected model.
+For the `gpt-5.4` family, `lmt` applies short-context pricing below `272000` prompt tokens and long-context pricing at `272000` tokens and above when the model has a separate long-context rate.
+
+### Reasoning Effort and Request Options
+
+For models that support reasoning control, use `--reasoning-effort`:
+
+```bash
+lmt "Explain this diff" -m gpt-5.4 --reasoning-effort high
+```
+
+Accepted values are:
+
+* `none`
+* `minimal`
+* `low`
+* `medium`
+* `high`
+* `xhigh`
+
+You can also pass additional Chat Completions request options with repeatable `-o/--option key=value` pairs:
+
+```bash
+lmt "Summarize this file" -m gpt-5.4 \
+        --reasoning-effort medium \
+        -o verbosity=low \
+        -o top_p=0.9 \
+        -o metadata.topic="cli"
+```
+
+Nested request objects can be passed with dotted keys or JSON values:
+
+```bash
+lmt "Search the web for recent releases" \
+        -o web_search_options.search_context_size=high \
+        -o response_format='{"type":"json_object"}'
+```
+
+If a request option already has a dedicated CLI flag such as `--model`, `--temperature`, `--no-stream`, or `--reasoning-effort`, use that dedicated flag instead of `-o`.
 
 ### Reading from `stdin`
 

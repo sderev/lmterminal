@@ -26,6 +26,8 @@ def prepare_and_generate_response(
     emoji: bool,
     prompt_input: str,
     temperature: float,
+    reasoning_effort: str | None,
+    request_options: dict | None,
     tokens: bool,
     no_stream: bool,
     raw: bool,
@@ -62,7 +64,7 @@ def prepare_and_generate_response(
         ]
 
     if debug:
-        display_debug_information(prompt, model, temperature)
+        display_debug_information(prompt, model, temperature, reasoning_effort, request_options)
 
     if tokens:
         display_tokens_count_and_cost(prompt, model)
@@ -75,6 +77,8 @@ def prepare_and_generate_response(
         raw,
         stream,
         temperature,
+        reasoning_effort,
+        request_options,
     )
 
     return content, response_time, response
@@ -159,6 +163,8 @@ def generate_response(
     raw: bool = False,
     stream: bool = True,
     temperature: float = 1,
+    reasoning_effort: str | None = None,
+    request_options: dict | None = None,
 ):
     """
     Generates a response from a ChatGPT.
@@ -200,6 +206,8 @@ def generate_response(
                 model=model,
                 stream=stream,
                 temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                request_options=request_options,
                 update_markdown_stream=update_markdown_stream,
             )
 
@@ -235,7 +243,9 @@ def generate_response(
             return content, response_time, response
 
 
-def display_debug_information(prompt, model, temperature):
+def display_debug_information(
+    prompt, model, temperature, reasoning_effort=None, request_options=None
+):
     """
     Displays debug information.
     """
@@ -258,6 +268,14 @@ def display_debug_information(prompt, model, temperature):
     click.echo(f"{temperature=}", err=True)
     click.echo(err=True)
 
+    click.secho("Reasoning effort:", fg="red", err=True)
+    click.echo(f"{reasoning_effort=}", err=True)
+    click.echo(err=True)
+
+    click.secho("Request options:", fg="red", err=True)
+    click.echo(f"{request_options=}", err=True)
+    click.echo(err=True)
+
     click.secho("End of debug information.", fg="yellow", err=True)
     click.echo("---\n", err=True)
 
@@ -266,28 +284,21 @@ def display_tokens_count_and_cost(prompt, model):
     """
     Displays the number of tokens in the prompt and the cost of the prompt.
     """
-    # If the model is of the `o1` variant, it will ignore the system message.
-    # This is a temporary solution until the `o1` models support system messages.
-    if "o1" in model:
-        full_prompt = prompt[0]["content"]
-    else:
-        full_prompt = prompt[0]["content"] + prompt[1]["content"]
-
-    # The model name `chatgpt-4o-latest` is not found in the `tiktoken` OpenAI API (as of 2024-08-14).
-    # Since it's a `gpt-4o` variant anyway, we can just use `gpt-4o`.
-    if model == "chatgpt-4o-latest":
-        model = "gpt-4o"
-
-    number_of_tokens = openai_utils.num_tokens_from_string(full_prompt, model)
-    cost = openai_utils.estimate_prompt_cost(prompt, model)
+    prompt_cost_estimate = openai_utils.estimate_prompt_cost_details(prompt, model)
 
     click.echo(
-        f"Number of tokens in the prompt: {click.style(str(number_of_tokens), fg='yellow')}."
+        "Number of tokens in the prompt:"
+        f" {click.style(str(prompt_cost_estimate.num_tokens), fg='yellow')}."
     )
     click.echo(
         f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
-        f" {click.style(f'${cost}', fg='yellow')}."
+        f" {click.style(f'${prompt_cost_estimate.cost}', fg='yellow')}."
     )
+    if prompt_cost_estimate.pricing_context:
+        click.echo(
+            "Pricing tier used for this estimate:"
+            f" {click.style(prompt_cost_estimate.pricing_context, fg='yellow')} context."
+        )
     click.echo(
         "Please note that this cost applies only to the prompt, not the subsequent response."
     )

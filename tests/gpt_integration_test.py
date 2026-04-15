@@ -101,3 +101,95 @@ def test_chatgpt_request_stream_prints_with_flush_when_no_callback(monkeypatch):
         (("Hel",), {"end": "", "flush": True}),
         (("lo",), {"end": "", "flush": True}),
     ]
+
+
+def test_estimate_prompt_cost_details_uses_short_context_pricing(monkeypatch):
+    monkeypatch.setattr(
+        gpt_integration, "num_tokens_from_messages", lambda *_args, **_kwargs: 271_999
+    )
+
+    estimate = gpt_integration.estimate_prompt_cost_details(
+        [{"role": "user", "content": "hello"}],
+        "gpt-5.4",
+    )
+
+    assert estimate.num_tokens == 271_999
+    assert estimate.price_per_1m_tokens == 2.50
+    assert estimate.pricing_context == "short"
+    assert estimate.cost == "0.679998"
+
+
+def test_estimate_prompt_cost_details_uses_long_context_pricing(monkeypatch):
+    monkeypatch.setattr(
+        gpt_integration, "num_tokens_from_messages", lambda *_args, **_kwargs: 272_000
+    )
+
+    estimate = gpt_integration.estimate_prompt_cost_details(
+        [{"role": "user", "content": "hello"}],
+        "gpt-5.4",
+    )
+
+    assert estimate.num_tokens == 272_000
+    assert estimate.price_per_1m_tokens == 5.00
+    assert estimate.pricing_context == "long"
+    assert estimate.cost == "1.360000"
+
+
+def test_estimate_prompt_cost_details_keeps_short_pricing_when_long_band_missing(monkeypatch):
+    monkeypatch.setattr(
+        gpt_integration, "num_tokens_from_messages", lambda *_args, **_kwargs: 272_000
+    )
+
+    estimate = gpt_integration.estimate_prompt_cost_details(
+        [{"role": "user", "content": "hello"}],
+        "gpt-5.4-mini",
+    )
+
+    assert estimate.num_tokens == 272_000
+    assert estimate.price_per_1m_tokens == 0.75
+    assert estimate.pricing_context is None
+    assert estimate.cost == "0.204000"
+
+
+def test_estimate_prompt_cost_preserves_legacy_price_only_models(monkeypatch):
+    monkeypatch.setattr(
+        gpt_integration, "num_tokens_from_messages", lambda *_args, **_kwargs: 1_000_000
+    )
+
+    cost = gpt_integration.estimate_prompt_cost(
+        [{"role": "user", "content": "hello"}],
+        "gpt-4-turbo-preview",
+    )
+
+    assert cost == "10.000000"
+
+
+def test_chatgpt_request_forwards_reasoning_effort_and_request_options(monkeypatch):
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
+    client, completions = _build_client(response)
+    monkeypatch.setattr(gpt_integration, "_get_client", lambda _api_key: client)
+
+    prompt = [{"role": "user", "content": "ping"}]
+    gpt_integration.chatgpt_request(
+        api_key="test-key",
+        prompt=prompt,
+        model="gpt-5.4",
+        n=1,
+        temperature=0.3,
+        stream=False,
+        reasoning_effort="high",
+        request_options={"top_p": 0.9, "metadata": {"topic": "test"}},
+    )
+
+    assert completions.calls == [
+        {
+            "messages": prompt,
+            "model": "gpt-5.4",
+            "n": 1,
+            "temperature": 0.3,
+            "stream": False,
+            "reasoning_effort": "high",
+            "top_p": 0.9,
+            "metadata": {"topic": "test"},
+        }
+    ]
