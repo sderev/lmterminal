@@ -212,7 +212,7 @@ Additionally, you can filter specific lines from your text and pass them as a pr
 
 ## Theming Colors for Code Blocks
 
-Once you used `lmt`, you should have a configuration file (`~/.config/lmt/config.json`) in which you can configure the colors for inline code and code blocks.
+`lmt` reads code-theme overrides from `~/.config/lmt/config.json` when the file exists. If the file is missing, defaults are used; create it manually to customize inline code and code-block colors.
 
 Here are the styles for the code blocks: <https://pygments.org/styles/>
 
