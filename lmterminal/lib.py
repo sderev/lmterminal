@@ -17,6 +17,8 @@ RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
 DEFAULT_MODEL = "gpt-5-nano"
+DEFAULT_CODE_BLOCK_THEME = "monokai"
+DEFAULT_INLINE_CODE_THEME = "blue on black"
 
 
 def prepare_and_generate_response(
@@ -110,14 +112,17 @@ def load_config() -> dict:
     Loads the config file.
     """
     config_path = get_config_path()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.touch(exist_ok=True)
+    if not config_path.exists():
+        return {}
 
     try:
         with open(config_path, "r", encoding="UTF-8") as file:
             config = json.load(file)
-    except json.decoder.JSONDecodeError:
-        config = {}
+    except (json.decoder.JSONDecodeError, OSError):
+        return {}
+
+    if not isinstance(config, dict):
+        return {}
 
     return config
 
@@ -127,8 +132,9 @@ def save_config(config: dict) -> None:
     Saves the config file.
     """
     config_path = get_config_path()
-    with open(config_path, "w", encoding="UTF-8") as config_path:
-        json.dump(config, config_path, indent=4)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="UTF-8") as config_file:
+        json.dump(config, config_file, indent=4)
 
 
 def get_markdown_code_block_theme() -> str:
@@ -136,10 +142,10 @@ def get_markdown_code_block_theme() -> str:
     Gets the markdown code block theme from the config file.
     """
     config = load_config()
-    config.setdefault("code_block_theme", "monokai")
-    save_config(config)
-
-    return config["code_block_theme"]
+    code_block_theme = config.get("code_block_theme")
+    if isinstance(code_block_theme, str):
+        return code_block_theme
+    return DEFAULT_CODE_BLOCK_THEME
 
 
 def get_markdown_inline_code_theme() -> str:
@@ -147,10 +153,10 @@ def get_markdown_inline_code_theme() -> str:
     Gets the markdown inline code theme from the config file.
     """
     config = load_config()
-    config.setdefault("inline_code_theme", "blue on black")
-    save_config(config)
-
-    return config["inline_code_theme"]
+    inline_code_theme = config.get("inline_code_theme")
+    if isinstance(inline_code_theme, str):
+        return inline_code_theme
+    return DEFAULT_INLINE_CODE_THEME
 
 
 def generate_response(
