@@ -178,22 +178,32 @@ def generate_response(
     custom_theme = Theme({"markdown.code": inline_code_theme})
 
     console = Console(theme=custom_theme)
-    markdown_stream = ""
-    with Live(markdown_stream, console=console, refresh_per_second=25) as live:
-        # Allows rich markdown formatted stream in real time
-        def update_markdown_stream(chunk: str) -> None:
-            nonlocal markdown_stream
-            markdown_stream += chunk
-            if raw:
-                print(chunk, end="", flush=True)
-            else:
-                rich_markdown_stream = Markdown(
-                    markdown_stream,
-                    code_theme=code_block_theme,
-                )
-                live.update(rich_markdown_stream)
+    use_live_markdown = stream and not raw and console.is_terminal and not console.is_dumb_terminal
+    update_markdown_stream = None
 
-        try:
+    try:
+        if use_live_markdown:
+            markdown_stream = ""
+
+            with Live("", console=console, auto_refresh=False) as live:
+                # Refresh on each chunk so streaming isn't tied to a background timer.
+                def update_markdown_stream(chunk: str) -> None:
+                    nonlocal markdown_stream
+                    markdown_stream += chunk
+                    live.update(
+                        Markdown(markdown_stream, code_theme=code_block_theme),
+                        refresh=True,
+                    )
+
+                content, response_time, response = openai_utils.chatgpt_request(
+                    api_key=api_key,
+                    prompt=prompt,
+                    model=model,
+                    stream=stream,
+                    temperature=temperature,
+                    update_markdown_stream=update_markdown_stream,
+                )
+        else:
             content, response_time, response = openai_utils.chatgpt_request(
                 api_key=api_key,
                 prompt=prompt,
@@ -203,36 +213,36 @@ def generate_response(
                 update_markdown_stream=update_markdown_stream,
             )
 
-            # This is temporary to ensure that the last line always ends with a newline
-            # This will be removed when refactored
-            if not content.endswith("\n"):
-                content += "\n"
-            #############################
+        # This is temporary to ensure that the last line always ends with a newline
+        # This will be removed when refactored
+        if not content.endswith("\n"):
+            content += "\n"
+        #############################
 
-            if not stream:
-                print(content, end="")
+        if not stream:
+            print(content, end="")
 
-        except openai.RateLimitError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            openai_utils.handle_rate_limit_error()
-            sys.exit(1)
+    except openai.RateLimitError as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        openai_utils.handle_rate_limit_error()
+        sys.exit(1)
 
-        except openai.AuthenticationError:
-            openai_utils.handle_authentication_error()
-            sys.stderr.write("\nYou can set your API key by running: ")
-            sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
-            sys.exit(1)
+    except openai.AuthenticationError:
+        openai_utils.handle_authentication_error()
+        sys.stderr.write("\nYou can set your API key by running: ")
+        sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
+        sys.exit(1)
 
-        except openai.APIConnectionError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+    except openai.APIConnectionError as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        sys.exit(1)
 
-        except Exception as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+    except Exception as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        sys.exit(1)
 
-        else:
-            return content, response_time, response
+    else:
+        return content, response_time, response
 
 
 def display_debug_information(prompt, model, temperature):
