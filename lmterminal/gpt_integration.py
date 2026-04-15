@@ -1,8 +1,11 @@
 import sys
 import time
+from dataclasses import dataclass
 
 import openai
 import tiktoken
+
+from .model_registry import get_input_price_per_million, get_price_band, get_tokenizer_model
 
 _client = None
 
@@ -45,6 +48,8 @@ def chatgpt_request(
     temperature=1,
     stop=None,
     stream=False,
+    reasoning_effort=None,
+    request_options=None,
     update_markdown_stream=None,
 ):
     """
@@ -60,14 +65,22 @@ def chatgpt_request(
 
     client = _get_client(api_key)
 
+    request_kwargs = {
+        "messages": prompt,
+        "model": model,
+        "n": n,
+        "temperature": temperature,
+        "stream": stream,
+    }
+    if stop is not None:
+        request_kwargs["stop"] = stop
+    if reasoning_effort is not None:
+        request_kwargs["reasoning_effort"] = reasoning_effort
+    if request_options:
+        request_kwargs.update(request_options)
+
     # Make the API request
-    response = client.chat.completions.create(
-        messages=prompt,
-        model=model,
-        n=n,
-        temperature=temperature,
-        stream=stream,
-    )
+    response = client.chat.completions.create(**request_kwargs)
 
     if stream:
         # Create variables to collect the stream of chunks
@@ -108,6 +121,7 @@ def chatgpt_request(
 
 def num_tokens_from_string(string, model=DEFAULT_MODEL):
     """Returns the number of tokens in a text string."""
+    model = get_tokenizer_model(model)
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
@@ -118,6 +132,7 @@ def num_tokens_from_string(string, model=DEFAULT_MODEL):
 
 def num_tokens_from_messages(messages, model=DEFAULT_MODEL):
     """Returns the number of tokens used by a list of messages."""
+    model = get_tokenizer_model(model)
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
@@ -143,67 +158,31 @@ def estimated_cost(num_tokens, price_per_1M_tokens):
     return f"{num_tokens / 10**6 * price_per_1M_tokens:.6f}"
 
 
+@dataclass(frozen=True)
+class PromptCostEstimate:
+    num_tokens: int
+    price_per_1m_tokens: float
+    cost: str
+    pricing_context: str | None
+
+
+def estimate_prompt_cost_details(message, model):
+    """Returns prompt token and pricing details for a model."""
+    num_tokens = num_tokens_from_messages(message, model)
+    price_per_1m_tokens = get_input_price_per_million(model, num_tokens)
+    _, pricing_context = get_price_band(model, num_tokens)
+
+    return PromptCostEstimate(
+        num_tokens=num_tokens,
+        price_per_1m_tokens=price_per_1m_tokens,
+        cost=estimated_cost(num_tokens, price_per_1m_tokens),
+        pricing_context=pricing_context,
+    )
+
+
 def estimate_prompt_cost(message, model):
     """Returns the estimated cost of a prompt."""
-    num_tokens = num_tokens_from_messages(message, model)
-
-    # Prices in USD per 1M input tokens
-    prices = {
-        "gpt-3.5-turbo": 0.50,
-        "gpt-3.5-turbo-0125": 0.50,
-        "gpt-3.5-turbo-1106": 0.50,
-        "gpt-3.5-turbo-instruct": 1.50,
-        "gpt-4": 30,
-        "gpt-4-turbo-preview": 10,
-        "gpt-4-turbo": 10,
-        "gpt-4-turbo-2024-04-09": 0.01,
-        "gpt-4-0613": 0.03,
-        "gpt-4-1106-preview": 10,
-        "gpt-4-0125-preview": 10,
-        "gpt-4-32k": 60,
-        "gpt-4-32k-0613": 60,
-        "gpt-4o": 2.50,
-        "gpt-4o-2024-05-13": 5,
-        "gpt-4o-2024-08-06": 2.50,
-        "gpt-4o-2024-11-20": 2.50,
-        "gpt-4o-mini": 0.15,
-        "gpt-4o-mini-2024-07-18": 0.15,
-        "chatgpt-4o-latest": 5,
-        "o1": 15,
-        "o1-2024-12-17": 15,
-        "o1-preview": 15,
-        "o1-preview-2024-09-12": 15,
-        "o1-mini": 1.10,
-        "o1-mini-2024-09-12": 1.10,
-        "o1-pro": 150,
-        "o1-pro-2025-03-19": 150,
-        "gpt-4.1": 2,
-        "gpt-4.1-2025-04-14": 2,
-        "gpt-4.1-mini": 0.40,
-        "gpt-4.1-mini-2025-04-14": 0.40,
-        "gpt-4.1-nano": 0.1,
-        "gpt-4.1-nano-2025-04-14": 0.10,
-        "gpt-4.5-preview": 75,
-        "o3": 2,
-        "o3-2025-04-16": 2,
-        "o3-mini": 1.10,
-        "o3-mini-2025-01-31": 1.10,
-        "o4-mini": 1.10,
-        "o4-mini-2025-04-16": 1.10,
-        "codex-mini-latest": 1.50,
-        "gpt-4o-search-preview": 2.50,
-        "gpt-4o-search-preview-2025-03-11": 2.50,
-        "gpt-4o-mini-search-preview": 0.15,
-        "gpt-4o-mini-search-preview-2025-03-11": 0.15,
-        "gpt-5": 1.25,
-        "gpt-5-mini": 0.25,
-        "gpt-5-nano": 0.05,
-        "gpt-5-chat-latest": 1.25,
-        "gpt-5.1": 1.25,
-        "gpt-5.2": 1.75,
-    }
-
-    return estimated_cost(num_tokens, prices[model])
+    return estimate_prompt_cost_details(message, model).cost
 
 
 def handle_rate_limit_error():
