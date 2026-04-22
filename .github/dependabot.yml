@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      python-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
