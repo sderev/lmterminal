@@ -21,6 +21,22 @@ RESET = "\x1b[0m"
 
 DEFAULT_MODEL = "gpt-5-nano"
 
+# Keep streamed `gpt-5*` output responsive without sending unsupported values.
+STREAMING_REASONING_EFFORT_BY_MODEL_PREFIX = (
+    ("gpt-5-chat", None),
+    ("gpt-5.2", "low"),
+    ("gpt-5.1", "low"),
+    ("gpt-5", "minimal"),
+)
+
+
+def _streaming_reasoning_effort_for_model(model: str):
+    """Returns the streaming reasoning effort override for a model, when needed."""
+    for prefix, reasoning_effort in STREAMING_REASONING_EFFORT_BY_MODEL_PREFIX:
+        if model.startswith(prefix):
+            return reasoning_effort
+    return None
+
 
 def format_prompt(system_content, user_content):
     """Returns a formatted prompt for the OpenAI API."""
@@ -60,14 +76,21 @@ def chatgpt_request(
 
     client = _get_client(api_key)
 
+    request_kwargs = {
+        "messages": prompt,
+        "model": model,
+        "n": n,
+        "temperature": temperature,
+        "stream": stream,
+    }
+    if stream:
+        reasoning_effort = _streaming_reasoning_effort_for_model(model)
+        if reasoning_effort is not None:
+            # Lower reasoning effort values stream tokens earlier on `gpt-5*`.
+            request_kwargs["reasoning_effort"] = reasoning_effort
+
     # Make the API request
-    response = client.chat.completions.create(
-        messages=prompt,
-        model=model,
-        n=n,
-        temperature=temperature,
-        stream=stream,
-    )
+    response = client.chat.completions.create(**request_kwargs)
 
     if stream:
         # Create variables to collect the stream of chunks

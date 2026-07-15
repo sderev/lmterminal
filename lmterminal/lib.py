@@ -17,6 +17,8 @@ RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
 DEFAULT_MODEL = "gpt-5-nano"
+DEFAULT_CODE_BLOCK_THEME = "monokai"
+DEFAULT_INLINE_CODE_THEME = "blue on black"
 
 
 def prepare_and_generate_response(
@@ -110,14 +112,17 @@ def load_config() -> dict:
     Loads the config file.
     """
     config_path = get_config_path()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.touch(exist_ok=True)
+    if not config_path.exists():
+        return {}
 
     try:
         with open(config_path, "r", encoding="UTF-8") as file:
             config = json.load(file)
-    except json.decoder.JSONDecodeError:
-        config = {}
+    except (json.decoder.JSONDecodeError, OSError):
+        return {}
+
+    if not isinstance(config, dict):
+        return {}
 
     return config
 
@@ -127,8 +132,9 @@ def save_config(config: dict) -> None:
     Saves the config file.
     """
     config_path = get_config_path()
-    with open(config_path, "w", encoding="UTF-8") as config_path:
-        json.dump(config, config_path, indent=4)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="UTF-8") as config_file:
+        json.dump(config, config_file, indent=4)
 
 
 def get_markdown_code_block_theme() -> str:
@@ -136,10 +142,10 @@ def get_markdown_code_block_theme() -> str:
     Gets the markdown code block theme from the config file.
     """
     config = load_config()
-    config.setdefault("code_block_theme", "monokai")
-    save_config(config)
-
-    return config["code_block_theme"]
+    code_block_theme = config.get("code_block_theme")
+    if isinstance(code_block_theme, str):
+        return code_block_theme
+    return DEFAULT_CODE_BLOCK_THEME
 
 
 def get_markdown_inline_code_theme() -> str:
@@ -147,10 +153,10 @@ def get_markdown_inline_code_theme() -> str:
     Gets the markdown inline code theme from the config file.
     """
     config = load_config()
-    config.setdefault("inline_code_theme", "blue on black")
-    save_config(config)
-
-    return config["inline_code_theme"]
+    inline_code_theme = config.get("inline_code_theme")
+    if isinstance(inline_code_theme, str):
+        return inline_code_theme
+    return DEFAULT_INLINE_CODE_THEME
 
 
 def generate_response(
@@ -178,22 +184,32 @@ def generate_response(
     custom_theme = Theme({"markdown.code": inline_code_theme})
 
     console = Console(theme=custom_theme)
-    markdown_stream = ""
-    with Live(markdown_stream, console=console, refresh_per_second=25) as live:
-        # Allows rich markdown formatted stream in real time
-        def update_markdown_stream(chunk: str) -> None:
-            nonlocal markdown_stream
-            markdown_stream += chunk
-            if raw:
-                print(chunk, end="", flush=True)
-            else:
-                rich_markdown_stream = Markdown(
-                    markdown_stream,
-                    code_theme=code_block_theme,
-                )
-                live.update(rich_markdown_stream)
+    use_live_markdown = stream and not raw and console.is_terminal and not console.is_dumb_terminal
+    update_markdown_stream = None
 
-        try:
+    try:
+        if use_live_markdown:
+            markdown_stream = ""
+
+            with Live("", console=console, auto_refresh=False) as live:
+                # Refresh on each chunk so streaming isn't tied to a background timer.
+                def update_markdown_stream(chunk: str) -> None:
+                    nonlocal markdown_stream
+                    markdown_stream += chunk
+                    live.update(
+                        Markdown(markdown_stream, code_theme=code_block_theme),
+                        refresh=True,
+                    )
+
+                content, response_time, response = openai_utils.chatgpt_request(
+                    api_key=api_key,
+                    prompt=prompt,
+                    model=model,
+                    stream=stream,
+                    temperature=temperature,
+                    update_markdown_stream=update_markdown_stream,
+                )
+        else:
             content, response_time, response = openai_utils.chatgpt_request(
                 api_key=api_key,
                 prompt=prompt,
@@ -203,36 +219,36 @@ def generate_response(
                 update_markdown_stream=update_markdown_stream,
             )
 
-            # This is temporary to ensure that the last line always ends with a newline
-            # This will be removed when refactored
-            if not content.endswith("\n"):
-                content += "\n"
-            #############################
+        # This is temporary to ensure that the last line always ends with a newline
+        # This will be removed when refactored
+        if not content.endswith("\n"):
+            content += "\n"
+        #############################
 
-            if not stream:
-                print(content, end="")
+        if not stream:
+            print(content, end="")
 
-        except openai.RateLimitError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            openai_utils.handle_rate_limit_error()
-            sys.exit(1)
+    except openai.RateLimitError as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        openai_utils.handle_rate_limit_error()
+        sys.exit(1)
 
-        except openai.AuthenticationError:
-            openai_utils.handle_authentication_error()
-            sys.stderr.write("\nYou can set your API key by running: ")
-            sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
-            sys.exit(1)
+    except openai.AuthenticationError:
+        openai_utils.handle_authentication_error()
+        sys.stderr.write("\nYou can set your API key by running: ")
+        sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
+        sys.exit(1)
 
-        except openai.APIConnectionError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+    except openai.APIConnectionError as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        sys.exit(1)
 
-        except Exception as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+    except Exception as error:
+        click.echo(f"{RED}Error:{RESET} {error}", err=True)
+        sys.exit(1)
 
-        else:
-            return content, response_time, response
+    else:
+        return content, response_time, response
 
 
 def display_debug_information(prompt, model, temperature):
