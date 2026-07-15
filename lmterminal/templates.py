@@ -96,24 +96,19 @@ user:
 
 
 
-# You can change the model according to the list below.
-# The default model is "gpt-3.5-turbo".
+# You can change the model according to the list printed by `lmt models`.
+# The default model is "gpt-5-nano".
 # More advanced models might provide more accurate or detailed responses,
-# but they also have a higher "cost per 1K tokens". Tokens refer to chunks of text that AI models read. More tokens usually mean more cost.
-model: "gpt-3.5-turbo"
+# but they also have a higher prompt and response cost.
+model: "gpt-5-nano"
 
 
-# Valid Models
+# Model examples
 #
 # "chatgpt" or "gpt-3.5-turbo"
-# "chatgpt-16k" or "gpt-3.5-turbo-16k"
+# "4o" or "gpt-4o"
+# "5" or "gpt-5"
+# "5.4" or "gpt-5.4"
 #
-# "3.5" or "gpt-3.5-turbo"
-# "3.5-16k" or "gpt-3.5-turbo-16k"
-#
-# "4" or "gpt-4"
-# "gpt4" or "gpt-4"
-#
-# "4-32k" or "gpt-4-32k"
-# "gpt4-32k" or "gpt-4-32k"
+# Run `lmt models` to see the full list available in your installed version.
 """
