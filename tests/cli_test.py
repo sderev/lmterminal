@@ -1,8 +1,10 @@
+from types import SimpleNamespace
+
 import pytest
 from click.exceptions import BadParameter
 from click.testing import CliRunner
 
-from lmterminal import cli
+from lmterminal import cli, lib
 
 
 @pytest.mark.parametrize(
@@ -90,6 +92,53 @@ def test_validate_temperature(value):
 def test_validate_temperature_invalid(value):
     with pytest.raises(BadParameter):
         cli.validate_temperature(None, None, value)
+
+
+@pytest.mark.parametrize(
+    "args, expected_prompt, stream",
+    [
+        ([], "piped input", True),
+        (["--rich"], "piped input", True),
+        (["prompt", "--raw", "Summarize"], "piped input\n___\nSummarize", True),
+        (["--no-stream"], "piped input", False),
+        (["prompt", "--no-stream", "Summarize"], "piped input\n___\nSummarize", False),
+    ],
+)
+def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expected_prompt, stream):
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "config.json")
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if kwargs["stream"]:
+            return iter(
+                SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))])
+                for text in ("Hel", "lo")
+            )
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Hello"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
+    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _api_key: client)
+
+    result = CliRunner().invoke(
+        cli.lmt, args, input="piped input\n", env={"TERM": "xterm", "FORCE_COLOR": "1"}
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ("Hello" if stream else "Hello\n")
+    assert calls == [
+        {
+            "messages": [
+                {"role": "system", "content": ""},
+                {"role": "user", "content": expected_prompt},
+            ],
+            "model": lib.DEFAULT_MODEL,
+            "n": 1,
+            "temperature": 1,
+            "stream": stream,
+        }
+    ]
 
 
 @pytest.mark.integration

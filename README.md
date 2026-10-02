@@ -200,6 +200,19 @@ You can use output redirections. For instance:
 lmt "List 5 Wikipedia articles" > wiki_articles.md
 ```
 
+Responses stream by default. On a capable interactive terminal, `lmt` renders Markdown
+as text arrives. `--raw` flushes each text fragment without inserting separators.
+Pipes, redirected output, dumb terminals, and terminals with `TTY_INTERACTIVE=0`
+use plain streamed text, including when `--rich` is requested.
+Redirected streaming output has a trailing newline only if the response contains one.
+
+Use `--no-stream` to wait for the complete response and print it as plain text with a
+trailing newline:
+
+```bash
+lmt --no-stream "List 5 Wikipedia articles" > wiki_articles.md
+```
+
 ### Using `lmt` as a Vim Filter Command
 
 To invoke `lmt` as a filter command in Vim, you can use the command `:.!lmt`. Remember, Vim offers the shortcut `!!` as a quick way to enter `:.!`. This means you can simply type `!!lmt` to initiate your prompt.

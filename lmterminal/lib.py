@@ -1,5 +1,6 @@
 import json
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 import click
@@ -155,7 +156,7 @@ def get_markdown_inline_code_theme() -> str:
 
 def generate_response(
     model: str = DEFAULT_MODEL,
-    prompt: str = None,
+    prompt: str | None = None,
     raw: bool = False,
     stream: bool = True,
     temperature: float = 1,
@@ -179,19 +180,28 @@ def generate_response(
 
     console = Console(theme=custom_theme)
     markdown_stream = ""
-    with Live(markdown_stream, console=console, refresh_per_second=25) as live:
-        # Allows rich markdown formatted stream in real time
+    use_live_markdown = (
+        stream
+        and not raw
+        and getattr(sys.stdout, "isatty", lambda: False)()
+        and console.is_terminal
+        and console.is_interactive
+        and not console.is_dumb_terminal
+    )
+    live_context = (
+        Live("", console=console, auto_refresh=False) if use_live_markdown else nullcontext()
+    )
+    with live_context as live:
+
         def update_markdown_stream(chunk: str) -> None:
             nonlocal markdown_stream
+            if not chunk:
+                return
             markdown_stream += chunk
-            if raw:
-                print(chunk, end="", flush=True)
-            else:
-                rich_markdown_stream = Markdown(
-                    markdown_stream,
-                    code_theme=code_block_theme,
-                )
-                live.update(rich_markdown_stream)
+            live.update(
+                Markdown(markdown_stream, code_theme=code_block_theme),
+                refresh=True,
+            )
 
         try:
             content, response_time, response = openai_utils.chatgpt_request(
@@ -200,7 +210,7 @@ def generate_response(
                 model=model,
                 stream=stream,
                 temperature=temperature,
-                update_markdown_stream=update_markdown_stream,
+                update_markdown_stream=update_markdown_stream if use_live_markdown else None,
             )
 
             # This is temporary to ensure that the last line always ends with a newline
@@ -227,7 +237,8 @@ def generate_response(
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
             sys.exit(1)
 
-        except Exception as error:
+        # Preserve the CLI's error-to-exit contract for unexpected failures.
+        except Exception as error:  # noqa: BLE001
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
             sys.exit(1)
 
