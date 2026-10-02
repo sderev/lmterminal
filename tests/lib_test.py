@@ -198,3 +198,47 @@ def test_generate_response_non_stream_preserves_plain_text_and_response(monkeypa
     assert content == text
     assert isinstance(response_time, float)
     assert response_payload is response
+
+
+@pytest.mark.parametrize(
+    "config_bytes, expected_config, expected_themes",
+    [
+        pytest.param(b'{"code_block_theme":', {}, ("monokai", "blue on black"), id="invalid-json"),
+        pytest.param(b'["default"]\n', {}, ("monokai", "blue on black"), id="non-object-json"),
+        pytest.param(
+            b'{"code_block_theme": "default", "inline_code_theme": "cyan", '
+            b'"unrelated": {"keep": true}}\n',
+            {
+                "code_block_theme": "default",
+                "inline_code_theme": "cyan",
+                "unrelated": {"keep": True},
+            },
+            ("default", "cyan"),
+            id="custom-themes-and-unrelated-keys",
+        ),
+    ],
+)
+def test_theme_reads_preserve_config_bytes(
+    monkeypatch, tmp_path, config_bytes, expected_config, expected_themes
+):
+    config_path = tmp_path / "config.json"
+    config_path.write_bytes(config_bytes)
+    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
+
+    assert lib.load_config() == expected_config
+    assert (
+        lib.get_markdown_code_block_theme(),
+        lib.get_markdown_inline_code_theme(),
+    ) == expected_themes
+    assert config_path.read_bytes() == config_bytes
+
+
+def test_theme_reads_do_not_create_missing_config(monkeypatch, tmp_path):
+    config_path = tmp_path / "missing" / "config.json"
+    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
+
+    assert lib.load_config() == {}
+    assert lib.get_markdown_code_block_theme() == "monokai"
+    assert lib.get_markdown_inline_code_theme() == "blue on black"
+    assert not config_path.exists()
+    assert not config_path.parent.exists()

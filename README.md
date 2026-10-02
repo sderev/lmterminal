@@ -225,7 +225,12 @@ Additionally, you can filter specific lines from your text and pass them as a pr
 
 ## Theming Colors for Code Blocks
 
-Once you used `lmt`, you should have a configuration file (`~/.config/lmt/config.json`) in which you can configure the colors for inline code and code blocks.
+`lmt` reads code-theme overrides from `~/.config/lmt/config.json` without creating or
+rewriting the file. Create it manually to customize inline code and code-block colors.
+Missing files, invalid JSON, and JSON values other than objects use the in-memory
+defaults: `monokai` for code blocks and `blue on black` for inline code. Missing or
+non-string theme fields also use these defaults. Valid string overrides and unrelated
+configuration keys are preserved.
 
 Here are the styles for the code blocks: <https://pygments.org/styles/>
 
