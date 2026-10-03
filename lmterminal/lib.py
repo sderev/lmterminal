@@ -281,30 +281,23 @@ def display_tokens_count_and_cost(prompt, model):
     """
     Displays the number of tokens in the prompt and the cost of the prompt.
     """
-    # If the model is of the `o1` variant, it will ignore the system message.
-    # This is a temporary solution until the `o1` models support system messages.
-    if "o1" in model:
-        full_prompt = prompt[0]["content"]
-    else:
-        full_prompt = prompt[0]["content"] + prompt[1]["content"]
-
-    # The model name `chatgpt-4o-latest` is not found in the `tiktoken` OpenAI API (as of 2024-08-14).
-    # Since it's a `gpt-4o` variant anyway, we can just use `gpt-4o`.
-    if model == "chatgpt-4o-latest":
-        model = "gpt-4o"
-
-    number_of_tokens = openai_utils.num_tokens_from_string(full_prompt, model)
-    cost = openai_utils.estimate_prompt_cost(prompt, model)
+    prompt_cost_estimate = openai_utils.estimate_prompt_cost_details(prompt, model)
 
     click.echo(
-        f"Number of tokens in the prompt: {click.style(str(number_of_tokens), fg='yellow')}."
+        "Number of tokens in the prompt:"
+        f" {click.style(str(prompt_cost_estimate.num_tokens), fg='yellow')}."
     )
     click.echo(
         f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
-        f" {click.style(f'${cost}', fg='yellow')}."
+        f" {click.style(f'${prompt_cost_estimate.cost}', fg='yellow')}."
     )
+    if prompt_cost_estimate.pricing_context:
+        click.echo(
+            "Pricing tier used for this estimate:"
+            f" {click.style(prompt_cost_estimate.pricing_context, fg='yellow')} context."
+        )
     click.echo(
-        "Please note that this cost applies only to the prompt, not the subsequent response."
+        "This is an input-token estimate, not a bill; output, caching and tool charges are excluded."
     )
     sys.exit(0)
 
