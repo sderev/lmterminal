@@ -244,43 +244,44 @@ def test_theme_reads_do_not_create_missing_config(monkeypatch, tmp_path):
     assert not config_path.parent.exists()
 
 
-@pytest.mark.parametrize("positional", [False, True])
-def test_prepare_response_old_call_contract(monkeypatch, positional):
+def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
     calls = []
     payload = object()
 
-    def fake_generate(*args, **kwargs):
-        calls.append((args, kwargs))
+    def fake_generate(model, prompt, raw, stream, temperature, **kwargs):
+        calls.append((model, prompt, raw, stream, temperature, kwargs))
         return "hello\n", 0.1, payload
 
     monkeypatch.setattr(lib, "generate_response", fake_generate)
-    # The existing LMtoolbox keyword call omits the new controls.
-    arguments = {
-        "system": "",
-        "template": None,
-        "model": lib.DEFAULT_MODEL,
-        "emoji": False,
-        "prompt_input": "hi",
-        "temperature": 1,
-        "tokens": False,
-        "no_stream": False,
-        "raw": True,
-        "debug": False,
-    }
-    if positional:
-        result = lib.prepare_and_generate_response(*arguments.values())
-    else:
-        result = lib.prepare_and_generate_response(**arguments)
+    result = lib.prepare_and_generate_response(
+        system="Reply concisely.",
+        template=None,
+        model="gpt-5.4",
+        emoji=False,
+        prompt_input="Say hello.",
+        temperature=0.3,
+        tokens=False,
+        no_stream=True,
+        raw=True,
+        debug=False,
+        reasoning_effort="none",
+        request_options={"verbosity": "low", "max_completion_tokens": 100},
+    )
+
     assert result == ("hello\n", 0.1, payload)
     assert calls == [
         (
-            (
-                lib.DEFAULT_MODEL,
-                [{"role": "system", "content": ""}, {"role": "user", "content": "hi"}],
-                True,
-                True,
-                1,
-            ),
-            {"reasoning_effort": None, "request_options": None},
+            "gpt-5.4",
+            [
+                {"role": "system", "content": "Reply concisely."},
+                {"role": "user", "content": "Say hello."},
+            ],
+            True,
+            False,
+            0.3,
+            {
+                "reasoning_effort": "none",
+                "request_options": {"verbosity": "low", "max_completion_tokens": 100},
+            },
         )
     ]
