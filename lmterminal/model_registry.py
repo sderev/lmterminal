@@ -54,27 +54,39 @@ def _spec(
 
 # Models requiring other endpoints or already retired retain price metadata only.
 MODEL_REGISTRY = {
+    # Following GPT-3.5/4/Turbo block: Standard USD/1M rates checked 2026-10-03.
+    # https://developers.openai.com/api/docs/pricing
+    # GPT-4/Turbo family rates follow their published current snapshots:
+    # https://developers.openai.com/api/docs/models/gpt-4
+    # https://developers.openai.com/api/docs/models/gpt-4-turbo
+    # Preview inputs are retained without reverification; 32k uses historical evidence.
     "gpt-3.5-turbo": _spec(
         aliases=("chatgpt", "3.5"),
         short_input=0.50,
+        short_output=1.50,
     ),
     "gpt-3.5-turbo-0125": _spec(
         short_input=0.50,
+        short_output=1.50,
         tokenizer_model="gpt-3.5-turbo",
     ),
+    # Retired GPT-3.5 rates remain published; these entries stay price-only.
     "gpt-3.5-turbo-1106": _spec(
         chat_completions=False,
-        short_input=0.50,
+        short_input=1.00,
+        short_output=2.00,
         tokenizer_model="gpt-3.5-turbo",
     ),
-    "gpt-3.5-turbo-instruct": _spec(chat_completions=False, short_input=1.50),
+    "gpt-3.5-turbo-instruct": _spec(chat_completions=False, short_input=1.50, short_output=2.00),
     "gpt-4": _spec(
         aliases=("4", "gpt4"),
         short_input=30,
+        short_output=60,
     ),
     "gpt-4-turbo": _spec(
         aliases=("4t", "4-turbo", "gpt4-turbo"),
         short_input=10,
+        short_output=30,
     ),
     "gpt-4-turbo-preview": _spec(
         chat_completions=False,
@@ -83,16 +95,21 @@ MODEL_REGISTRY = {
     ),
     "gpt-4-turbo-2024-04-09": _spec(
         short_input=10,
+        short_output=30,
         tokenizer_model="gpt-4-turbo",
     ),
     "gpt-4-0613": _spec(
         short_input=30,
+        short_output=60,
         tokenizer_model="gpt-4",
     ),
+    # Historical 32k rates: https://developers.openai.com/api/docs/deprecations
+    # Checked 2026-10-03; retired 2025-06-06, retained as price metadata only.
     "gpt-4-32k": _spec(
         chat_completions=False,
         aliases=("4-32k", "gpt4-32k"),
         short_input=60,
+        short_output=120,
     ),
     "gpt-4-1106-preview": _spec(
         chat_completions=False,
@@ -104,9 +121,11 @@ MODEL_REGISTRY = {
         short_input=10,
         tokenizer_model="gpt-4-turbo",
     ),
+    # Same historical deprecation-source rates as gpt-4-32k above.
     "gpt-4-32k-0613": _spec(
         chat_completions=False,
         short_input=60,
+        short_output=120,
         tokenizer_model="gpt-4-32k",
     ),
     "gpt-4o": _spec(
