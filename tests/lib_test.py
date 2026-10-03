@@ -242,3 +242,45 @@ def test_theme_reads_do_not_create_missing_config(monkeypatch, tmp_path):
     assert lib.get_markdown_inline_code_theme() == "blue on black"
     assert not config_path.exists()
     assert not config_path.parent.exists()
+
+
+@pytest.mark.parametrize("positional", [False, True])
+def test_prepare_response_old_call_contract(monkeypatch, positional):
+    calls = []
+    payload = object()
+
+    def fake_generate(*args, **kwargs):
+        calls.append((args, kwargs))
+        return "hello\n", 0.1, payload
+
+    monkeypatch.setattr(lib, "generate_response", fake_generate)
+    # The existing LMtoolbox keyword call omits the new controls.
+    arguments = {
+        "system": "",
+        "template": None,
+        "model": lib.DEFAULT_MODEL,
+        "emoji": False,
+        "prompt_input": "hi",
+        "temperature": 1,
+        "tokens": False,
+        "no_stream": False,
+        "raw": True,
+        "debug": False,
+    }
+    if positional:
+        result = lib.prepare_and_generate_response(*arguments.values())
+    else:
+        result = lib.prepare_and_generate_response(**arguments)
+    assert result == ("hello\n", 0.1, payload)
+    assert calls == [
+        (
+            (
+                lib.DEFAULT_MODEL,
+                [{"role": "system", "content": ""}, {"role": "user", "content": "hi"}],
+                True,
+                True,
+                1,
+            ),
+            {"reasoning_effort": None, "request_options": None},
+        )
+    ]

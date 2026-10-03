@@ -30,7 +30,8 @@ lmt --tokens --model gpt-5.4 "Estimate this prompt"
 
 `lmt models` lists the registered Chat Completions models and aliases. Other
 endpoints, including Responses-only Pro and Codex models, and retired models are
-not supported. Model access and availability depend on your OpenAI account.
+not supported. Library requests also reject known Responses-only Pro snapshots.
+Model access and availability depend on your OpenAI account.
 
 `--tokens` estimates input tokens and cost without reading your API key or sending
 a request. Estimates include message overhead but exclude output, caching,
@@ -50,8 +51,30 @@ In a terminal, run `lmt` without a prompt to enter multiple lines; press Ctrl+D 
 send. `--raw` disables formatting. Streaming to pipes or terminals that cannot
 render interactive Markdown produces plain text, including with `--rich`.
 `--no-stream` waits for the complete response and prints plain text.
+Content-free tool-call responses print an empty line; library callers retain the
+raw response payload.
 
 In Vim, filter selected lines with `:'<,'>!lmt "Rewrite this paragraph"`.
+
+## Request controls
+
+```bash
+lmt -m gpt-5.4 --reasoning-effort high -o verbosity=low "Explain this function"
+lmt -m gpt-5.4 --reasoning-effort none --temperature 0.7 "Write a greeting"
+lmt -o max_completion_tokens=500 -o stream_options.include_usage=true "Say hello"
+```
+
+`--reasoning-effort` leaves the model default unchanged when omitted. Supported
+values depend on the model. The default temperature of 1 is omitted for models
+that do not support sampling, including GPT-5/nano/mini and o-series models;
+other temperature values are rejected for these models. GPT-5.1, GPT-5.2 and
+GPT-5.4 variants allow sampling with reasoning effort `none` (their default).
+
+Repeat `-o/--option key=value` for additional Chat Completions parameters. Values
+use JSON when valid, otherwise text; dotted keys build nested objects. Owned
+fields such as `model`, `messages`, `stream`, `n`, `stop`, `temperature` and
+`reasoning_effort` cannot be overridden with `-o`. Other model-specific options
+are checked by the API.
 
 ## Templates
 

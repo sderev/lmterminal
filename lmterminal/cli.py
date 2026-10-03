@@ -1,4 +1,5 @@
 import filecmp
+import json
 import shutil
 import sys
 
@@ -6,7 +7,8 @@ import click
 from click_default_group import DefaultGroup
 
 from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
-from .model_registry import get_valid_models, resolve_model_name
+from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
+from .request_options import validate_request_options
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 VALID_MODELS = get_valid_models()
@@ -38,6 +40,58 @@ def validate_temperature(ctx, param, value):
         return value
 
     raise click.BadParameter("Temperature must be between 0 and 2.")
+
+
+def parse_request_option_value(raw_value):
+    """Parses a request option value from the CLI."""
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        return raw_value
+
+
+def add_request_option(options, key, value):
+    """Adds a parsed request option to a nested mapping."""
+    key_parts = key.split(".")
+    if any(not key_part for key_part in key_parts):
+        raise click.BadParameter("Option keys cannot contain empty path segments.")
+
+    current_level = options
+    for key_part in key_parts[:-1]:
+        if key_part not in current_level:
+            current_level[key_part] = {}
+        existing_value = current_level[key_part]
+        if not isinstance(existing_value, dict):
+            raise click.BadParameter(
+                f"Option `{key}` conflicts with an existing non-object option."
+            )
+        current_level = existing_value
+
+    leaf_key = key_parts[-1]
+    if leaf_key in current_level:
+        raise click.BadParameter(f"Option `{key}` was provided more than once.")
+    current_level[leaf_key] = value
+
+
+def parse_request_options(ctx, param, values):
+    """Parses repeatable `key=value` request options from the CLI."""
+    options = {}
+
+    for raw_option in values:
+        if "=" not in raw_option:
+            raise click.BadParameter("Options must use the `key=value` form.")
+
+        key, raw_value = raw_option.split("=", 1)
+        if not key:
+            raise click.BadParameter("Option keys cannot be empty.")
+
+        add_request_option(options, key, parse_request_option_value(raw_value))
+
+    try:
+        validate_request_options(options)
+    except (TypeError, ValueError) as error:
+        raise click.BadParameter(str(error)) from error
+    return options
 
 
 @click.group(cls=DefaultGroup, default="prompt", default_if_no_args=True)
@@ -84,6 +138,19 @@ def lmt():
     show_default=True,
 )
 @click.option(
+    "--reasoning-effort",
+    type=click.Choice(REASONING_EFFORTS),
+    help="Set reasoning effort for models that support it; otherwise use the model default.",
+)
+@click.option(
+    "-o",
+    "--option",
+    "request_options",
+    multiple=True,
+    callback=parse_request_options,
+    help="Pass additional Chat Completions options as key=value (JSON values or text).",
+)
+@click.option(
     "--tokens",
     is_flag=True,
     help=("Count the number of tokens in the prompt, and display the cost of the request."),
@@ -122,6 +189,8 @@ def prompt(
     system,
     emoji,
     temperature,
+    reasoning_effort,
+    request_options,
     tokens,
     no_stream,
     raw,
@@ -199,6 +268,8 @@ def prompt(
         no_stream,
         raw,
         debug,
+        reasoning_effort=reasoning_effort,
+        request_options=request_options,
     )
 
     # Same as above (readibility), but after the LLM's response
