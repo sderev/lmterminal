@@ -28,6 +28,9 @@ def test_resolve_chat_model(name, canonical):
         "o1-pro",
         "codex-mini-latest",
         "gpt-3.5-turbo-instruct",
+        "gpt-3.5-turbo-1106",
+        "gpt-4-32k",
+        "gpt-4-32k-0613",
         "gpt-5.3-chat-latest",
         "gpt-4o-search-preview",
         "o1-mini",
@@ -103,3 +106,27 @@ def test_tokenizer_fallback_preserves_model_family(monkeypatch):
     )
     assert gpt_integration.num_tokens_from_string("hi", "gpt-5.4") == 2
     assert calls == ["gpt-5"]
+
+
+@pytest.mark.parametrize(
+    "model, input_price, output_price",
+    [
+        ("gpt-3.5-turbo", 0.50, 1.50),
+        ("gpt-3.5-turbo-0125", 0.50, 1.50),
+        ("gpt-3.5-turbo-1106", 1.00, 2.00),
+        ("gpt-3.5-turbo-instruct", 1.50, 2.00),
+        ("gpt-4", 30, 60),
+        ("gpt-4-0613", 30, 60),
+        ("gpt-4-turbo", 10, 30),
+        ("gpt-4-turbo-2024-04-09", 10, 30),
+        ("gpt-4-32k", 60, 120),
+        ("gpt-4-32k-0613", 60, 120),
+    ],
+)
+def test_source_backed_legacy_prices(model, input_price, output_price):
+    # Fixed USD/1M values from OpenAI pricing/deprecations, checked 2026-10-03.
+    band, tier = model_registry.get_price_band(model, 100)
+    assert band.input == input_price
+    assert band.output == output_price
+    assert band.cached_input is None
+    assert tier is None
