@@ -11,6 +11,7 @@ from rich.markdown import Markdown
 from rich.theme import Theme
 
 from . import gpt_integration as openai_utils
+from .request_options import prepare_request_controls
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
@@ -33,6 +34,9 @@ def prepare_and_generate_response(
     no_stream: bool,
     raw: bool,
     debug: bool,
+    *,
+    reasoning_effort: str | None = None,
+    request_options: dict | None = None,
 ):
     """
     Handles the parameters.
@@ -78,6 +82,8 @@ def prepare_and_generate_response(
         raw,
         stream,
         temperature,
+        reasoning_effort=reasoning_effort,
+        request_options=request_options,
     )
 
     return content, response_time, response
@@ -164,10 +170,18 @@ def generate_response(
     raw: bool = False,
     stream: bool = True,
     temperature: float = 1,
+    *,
+    reasoning_effort: str | None = None,
+    request_options: dict | None = None,
 ):
     """
     Generates a response from a ChatGPT.
     """
+    try:
+        prepare_request_controls(model, temperature, reasoning_effort, request_options)
+    except (TypeError, ValueError) as error:
+        raise click.BadParameter(str(error)) from error
+
     api_key = get_api_key()
 
     if not api_key:
@@ -214,6 +228,8 @@ def generate_response(
                 model=model,
                 stream=stream,
                 temperature=temperature,
+                reasoning_effort=reasoning_effort,
+                request_options=request_options,
                 update_markdown_stream=update_markdown_stream if use_live_markdown else None,
             )
 

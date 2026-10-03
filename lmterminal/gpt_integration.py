@@ -6,6 +6,7 @@ import openai
 import tiktoken
 
 from .model_registry import get_input_price_per_million, get_price_band, get_tokenizer_model
+from .request_options import prepare_request_controls
 
 _client = None
 
@@ -49,6 +50,9 @@ def chatgpt_request(
     stop=None,
     stream=False,
     update_markdown_stream=None,
+    *,
+    reasoning_effort=None,
+    request_options=None,
 ):
     """
     Sends a request to the OpenAI Chat API.
@@ -61,16 +65,12 @@ def chatgpt_request(
     """
     start_time = time.monotonic_ns()
 
+    controls = prepare_request_controls(model, temperature, reasoning_effort, request_options)
+    request_kwargs = dict(messages=prompt, model=model, n=n, stream=stream, **controls)
+    if stop is not None:
+        request_kwargs["stop"] = stop
     client = _get_client(api_key)
-
-    # Make the API request
-    response = client.chat.completions.create(
-        messages=prompt,
-        model=model,
-        n=n,
-        temperature=temperature,
-        stream=stream,
-    )
+    response = client.chat.completions.create(**request_kwargs)
 
     if stream:
         # Create variables to collect the stream of chunks
@@ -80,6 +80,8 @@ def chatgpt_request(
         # Iterate through the stream of events
         for chunk in response:
             collected_chunks.append(chunk)  # save the event response
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta  # extract the delta
             if delta.content is not None:
                 collected_messages.append(delta.content)  # save the message
@@ -96,7 +98,7 @@ def chatgpt_request(
 
     else:
         # Extract and save the generated response
-        generated_text = response.choices[0].message.content
+        generated_text = response.choices[0].message.content or ""
 
         # Save the time delay
         response_time = (time.monotonic_ns() - start_time) / 1e9

@@ -118,10 +118,96 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
             ],
             "model": lib.DEFAULT_MODEL,
             "n": 1,
-            "temperature": 1,
             "stream": stream,
         }
     ]
+
+
+@pytest.mark.parametrize("command", [[], ["prompt"]])
+@pytest.mark.parametrize("no_stream", [False, True])
+def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream):
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "config.json")
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if kwargs["stream"]:
+            return iter(
+                [
+                    SimpleNamespace(
+                        choices=[SimpleNamespace(delta=SimpleNamespace(content="hello"))]
+                    ),
+                    SimpleNamespace(choices=[]),
+                ]
+            )
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
+    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    args = command + [
+        "-m",
+        "5.4",
+        "--reasoning-effort",
+        "high",
+        "-o",
+        "verbosity=low",
+        "-o",
+        "max_completion_tokens=100",
+    ]
+    if no_stream:
+        args += ["--no-stream"]
+    else:
+        args += ["-o", "stream_options.include_usage=true"]
+    result = CliRunner().invoke(cli.lmt, args, input="hi")
+    assert result.exit_code == 0, result.output
+    assert result.stdout == ("hello\n" if no_stream else "hello")
+    call = calls[0]
+    assert call["model"] == "gpt-5.4"
+    assert call["reasoning_effort"] == "high"
+    assert call["verbosity"] == "low"
+    assert call["max_completion_tokens"] == 100
+    assert "temperature" not in call
+    if not no_stream:
+        assert call["stream_options"] == {"include_usage": True}
+
+
+@pytest.mark.parametrize(
+    "option, message",
+    [
+        ("stream=true", "reserved"),
+        ("n=2", "reserved"),
+        ("temperature=0.9", "--temperature"),
+        ("reasoning_effort=low", "--reasoning-effort"),
+        ("extra_body.stream=true", "reserved"),
+        ("verbosity", "key=value"),
+        ("stream_options..include_usage=true", "empty path segments"),
+    ],
+)
+def test_option_errors_are_cli_errors(monkeypatch, option, message):
+    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    result = CliRunner().invoke(cli.lmt, ["-o", option], input="hi")
+    assert result.exit_code == 2
+    assert message in result.output
+
+
+def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch):
+    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    result = CliRunner().invoke(cli.lmt, ["--temperature", "0.3"], input="hi")
+    assert result.exit_code == 2
+    assert "Temperature is not supported" in result.output
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ("verbosity=low", "verbosity=high"),
+        ("response_format=text", "response_format.type=json_object"),
+    ],
+)
+def test_option_duplicates_and_conflicts(values):
+    with pytest.raises(BadParameter):
+        cli.parse_request_options(None, None, values)
 
 
 @pytest.mark.integration
