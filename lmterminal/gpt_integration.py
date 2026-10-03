@@ -172,11 +172,6 @@ def estimate_prompt_cost_details(message, model):
     )
 
 
-def estimate_prompt_cost(message, model):
-    """Returns the estimated cost of a prompt."""
-    return estimate_prompt_cost_details(message, model).cost
-
-
 def handle_rate_limit_error():
     """
     Provides guidance on how to handle a rate limit error.

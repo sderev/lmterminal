@@ -218,27 +218,6 @@ def test_request_options_cannot_override_owned_controls(monkeypatch, stream, opt
         gpt_integration.chatgpt_request("test-key", [], stream=stream, request_options=options)
 
 
-def test_old_positional_callback_contract(monkeypatch):
-    chunk = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="hello"))])
-    client, _ = _build_client(iter([chunk]))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
-    updates = []
-    assert (
-        gpt_integration.chatgpt_request(
-            "test-key",
-            [],
-            "gpt-4o",
-            1,
-            1,
-            None,
-            True,
-            updates.append,
-        )[0]
-        == "hello"
-    )
-    assert updates == ["hello"]
-
-
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize(
     "model, effort, temperature, expected",

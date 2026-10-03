@@ -67,7 +67,6 @@ def test_prompt_pricing_boundary(monkeypatch, tokens, price, tier):
     assert estimate.price_per_1m_tokens == price
     assert estimate.pricing_context == tier
     assert estimate.cost == f"{tokens * price / 1_000_000:.6f}"
-    assert gpt_integration.estimate_prompt_cost([], "gpt-5.4") == estimate.cost
 
 
 def test_tokens_command_does_not_read_key_or_request(monkeypatch):
