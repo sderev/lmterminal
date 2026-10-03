@@ -96,24 +96,8 @@ user:
 
 
 
-# You can change the model according to the list below.
-# The default model is "gpt-3.5-turbo".
-# More advanced models might provide more accurate or detailed responses,
-# but they also have a higher "cost per 1K tokens". Tokens refer to chunks of text that AI models read. More tokens usually mean more cost.
+# Set a canonical model name from `lmt models`.
+# This example uses "gpt-3.5-turbo"; the CLI default is "gpt-5-nano".
+# Input and output tokens incur model-dependent charges.
 model: "gpt-3.5-turbo"
-
-
-# Valid Models
-#
-# "chatgpt" or "gpt-3.5-turbo"
-# "chatgpt-16k" or "gpt-3.5-turbo-16k"
-#
-# "3.5" or "gpt-3.5-turbo"
-# "3.5-16k" or "gpt-3.5-turbo-16k"
-#
-# "4" or "gpt-4"
-# "gpt4" or "gpt-4"
-#
-# "4-32k" or "gpt-4-32k"
-# "gpt4-32k" or "gpt-4-32k"
 """

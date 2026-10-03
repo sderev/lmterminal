@@ -6,74 +6,10 @@ import click
 from click_default_group import DefaultGroup
 
 from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
+from .model_registry import get_valid_models, resolve_model_name
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
-VALID_MODELS = {
-    "gpt-3.5-turbo": (
-        "chatgpt",
-        "3.5",
-    ),
-    "gpt-3.5-turbo-instruct": None,
-    "gpt-4": (
-        "4",
-        "gpt4",
-    ),
-    "gpt-4-turbo": (
-        "4t",
-        "4-turbo",
-        "gpt4-turbo",
-    ),
-    "gpt-4-32k": (
-        "4-32k",
-        "gpt4-32k",
-    ),
-    "gpt-4o": ("4o",),
-    "gpt-4o-2024-05-13": None,
-    "gpt-4o-2024-08-06": None,
-    "gpt-4o-2024-11-20": None,
-    "gpt-4o-mini": (
-        "4o-mini",
-        "4omini",
-        "4om",
-    ),
-    "gpt-4o-mini-2024-07-18": None,
-    "chatgpt-4o-latest": None,
-    "o1": None,
-    "o1-2024-12-17": None,
-    "o1-preview": None,
-    "o1-preview-2024-09-12": None,
-    "o1-mini": None,
-    "o1-mini-2024-09-12": None,
-    "o1-pro": None,
-    "o1-pro-2025-03-19": None,
-    "gpt-4.1": ("4.1",),
-    "gpt-4.1-2025-04-14": None,
-    "gpt-4.1-mini": ("4.1-mini",),
-    "gpt-4.1-mini-2025-04-14": None,
-    "gpt-4.1-nano": ("4.1-nano",),
-    "gpt-4.1-nano-2025-04-14": None,
-    "gpt-4.5-preview": None,
-    "o3": None,
-    "o3-2025-04-16": None,
-    "o3-mini": None,
-    "o3-mini-2025-01-31": None,
-    "o4-mini": None,
-    "o4-mini-2025-04-16": None,
-    "codex-mini-latest": None,
-    "gpt-4o-search-preview": None,
-    "gpt-4o-search-preview-2025-03-11": None,
-    "gpt-4o-mini-search-preview": None,
-    "gpt-4o-mini-search-preview-2025-03-11": None,
-    "gpt-5": (
-        "5",
-        "gpt5",
-    ),
-    "gpt-5-mini": ("5-mini",),
-    "gpt-5-nano": ("5-nano",),
-    "gpt-5-chat-latest": None,
-    "gpt-5.1": ("5.1",),
-    "gpt-5.2": ("5.2",),
-}
+VALID_MODELS = get_valid_models()
 
 
 # The first two parameters are required by Click for a callback.
@@ -81,14 +17,9 @@ def validate_model_name(ctx, param, value):
     """
     Validates the model name parameter.
     """
-    # This is the value that the user entered for the model name.
-    model_name = value.lower()
-
-    for model, aliases in VALID_MODELS.items():
-        if model_name == model:
-            return model
-        if aliases is not None and model_name in aliases:
-            return model
+    canonical_model_name = resolve_model_name(value)
+    if canonical_model_name is not None:
+        return canonical_model_name
 
     error_message = (
         f"{click.style('Invalid model name.', fg='red')}\n"
@@ -285,7 +216,8 @@ def models():
         if aliases:
             if len(aliases) == 1:
                 click.echo(f"  Alias: {aliases[0]}")
-            click.echo(f"  Aliases: {', '.join(aliases)}")
+            else:
+                click.echo(f"  Aliases: {', '.join(aliases)}")
 
 
 @lmt.group()
