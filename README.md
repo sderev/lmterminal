@@ -34,7 +34,13 @@ not supported. Library requests also reject known Responses-only Pro snapshots.
 Model access and availability depend on your OpenAI account.
 
 GPT-6 Luna, GPT-6.1 Sol and GPT-6 Astra are available for text
-generation through Chat Completions. Their aliases omit the `gpt-` prefix.
+generation through Chat Completions. Their version aliases omit the `gpt-` prefix.
+The family aliases `sol`, `luna` and `astra` select the newest supported plain
+release in the installed LMT catalog, currently `gpt-6.1-sol`, `gpt-6-luna` and
+`gpt-6-astra`. Package updates can advance these aliases; use an explicit model
+ID or version alias such as `6.1-sol` to choose a version. Resolution and listing
+run offline, without checking account access or tokenizer availability. An
+unavailable tokenizer or API error does not trigger a fallback to an older model.
 GPT-6 Astra and GPT-6.1 Sol require Responses for tool calling; GPT-6 Luna
 supports Chat Completions function calling only with reasoning effort `none`.
 

@@ -236,7 +236,7 @@ def test_option_duplicates_and_conflicts(values):
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("model", list(cli.VALID_MODELS), ids=str)
+@pytest.mark.parametrize("model", list(cli.get_valid_models()), ids=str)
 def test_live_call(model, request):
     if not request.config.getoption("--run-live"):
         pytest.skip("Skipping live call test. Use --run-live to enable.")

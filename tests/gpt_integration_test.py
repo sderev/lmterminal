@@ -21,7 +21,16 @@ def _build_client(response):
     return client, completions
 
 
-def test_chatgpt_request_non_stream_uses_v2_client_call(monkeypatch):
+@pytest.mark.parametrize(
+    "model, canonical, temperature, controls",
+    [
+        ("gpt-4o", "gpt-4o", 0.3, {"temperature": 0.3}),
+        ("sol", "gpt-6.1-sol", 1, {}),
+    ],
+)
+def test_chatgpt_request_non_stream_uses_v2_client_call(
+    monkeypatch, model, canonical, temperature, controls
+):
     response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
     client, completions = _build_client(response)
     monkeypatch.setattr(gpt_integration, "_get_client", lambda _api_key: client)
@@ -30,9 +39,9 @@ def test_chatgpt_request_non_stream_uses_v2_client_call(monkeypatch):
     generated_text, response_time, response_payload = gpt_integration.chatgpt_request(
         api_key="test-key",
         prompt=prompt,
-        model="gpt-4o",
+        model=model,
         n=1,
-        temperature=0.3,
+        temperature=temperature,
         stream=False,
     )
 
@@ -42,10 +51,10 @@ def test_chatgpt_request_non_stream_uses_v2_client_call(monkeypatch):
     assert completions.calls == [
         {
             "messages": prompt,
-            "model": "gpt-4o",
+            "model": canonical,
             "n": 1,
-            "temperature": 0.3,
             "stream": False,
+            **controls,
         }
     ]
 
