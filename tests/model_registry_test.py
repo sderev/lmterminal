@@ -1,7 +1,9 @@
+from dataclasses import replace
+
 import pytest
 from click.testing import CliRunner
 
-from lmterminal import cli, gpt_integration, lib, model_registry
+from lmterminal import cli, estimation, gpt_integration, lib, model_registry
 
 
 @pytest.mark.parametrize(
@@ -14,10 +16,54 @@ from lmterminal import cli, gpt_integration, lib, model_registry
         ("6-luna", "gpt-6-luna"),
         ("6.1-sol", "gpt-6.1-sol"),
         ("6-astra", "gpt-6-astra"),
+        ("luna", "gpt-6-luna"),
+        ("LUNA", "gpt-6-luna"),
+        ("sol", "gpt-6.1-sol"),
+        ("SOL", "gpt-6.1-sol"),
+        ("astra", "gpt-6-astra"),
+        ("ASTRA", "gpt-6-astra"),
     ],
 )
 def test_resolve_chat_model(name, canonical):
     assert model_registry.resolve_model_name(name) == canonical
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_family_alias_advances_by_supported_numeric_version(monkeypatch, reverse):
+    spec = model_registry.MODEL_REGISTRY["gpt-6.1-sol"]
+    entries = [
+        ("gpt-6.10-sol", replace(spec, aliases=("6.10-sol",), alias_version=(6, 10))),
+        ("gpt-6.9-sol", replace(spec, aliases=("6.9-sol",), alias_version=(6, 9))),
+        ("gpt-7-sol", replace(spec, alias_version=(7, 0), chat_completions=False)),
+        ("gpt-8-sol-codex", model_registry.ModelSpec(chat_completions=False)),
+        ("gpt-8-sol-2099-01-01", model_registry.ModelSpec()),
+    ]
+    for name, candidate in reversed(entries) if reverse else entries:
+        monkeypatch.setitem(model_registry.MODEL_REGISTRY, name, candidate)
+
+    assert model_registry.resolve_model_name("sol") == "gpt-6.10-sol"
+    assert model_registry.resolve_model_name("6.1-sol") == "gpt-6.1-sol"
+    assert model_registry.resolve_model_name("gpt-6.1-sol") == "gpt-6.1-sol"
+    models = model_registry.get_valid_models()
+    assert models["gpt-6.10-sol"] == ("6.10-sol", "sol")
+    assert [name for name, aliases in models.items() if aliases and "sol" in aliases] == [
+        "gpt-6.10-sol"
+    ]
+    assert "gpt-7-sol" not in models
+    result = CliRunner().invoke(cli.lmt, ["models"])
+    assert result.exit_code == 0
+    assert "gpt-6.10-sol\n  Aliases: 6.10-sol, sol\n" in result.output
+    assert "gpt-6.1-sol\n  Alias: 6.1-sol\n" in result.output
+
+
+def test_family_alias_rejects_duplicate_version(monkeypatch):
+    monkeypatch.setitem(
+        model_registry.MODEL_REGISTRY,
+        "another-sol",
+        model_registry.MODEL_REGISTRY["gpt-6.1-sol"],
+    )
+    with pytest.raises(ValueError, match="Duplicate alias version .* family `sol`"):
+        model_registry.resolve_model_name("sol")
 
 
 @pytest.mark.parametrize(
@@ -51,11 +97,16 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
 
     monkeypatch.setattr(lib, "get_api_key", forbidden)
     monkeypatch.setattr(gpt_integration, "_get_client", forbidden)
+    monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", forbidden)
+    monkeypatch.setattr(estimation.tiktoken, "get_encoding", forbidden)
+    assert model_registry.resolve_model_name("sol") == "gpt-6.1-sol"
     result = CliRunner().invoke(cli.lmt, ["models"])
     assert result.exit_code == 0
     assert "gpt-5.4" in result.output
     for model in ("gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"):
         assert model in result.output
+    for aliases in ("6-luna, luna", "6.1-sol, sol", "6-astra, astra"):
+        assert f"  Aliases: {aliases}\n" in result.output
     assert "gpt-3.5-turbo-0125" in result.output
     assert "gpt-5.4-pro" not in result.output
     assert "gpt-5.3-codex" not in result.output

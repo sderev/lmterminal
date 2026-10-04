@@ -31,6 +31,8 @@ class ModelSpec:
     chat_completions: bool = True
     reasoning_efforts: tuple[str, ...] | None = None
     default_reasoning_effort: str | None = None
+    alias_family: str | None = None
+    alias_version: tuple[int, int] | None = None
 
 
 def _spec(
@@ -46,6 +48,8 @@ def _spec(
     chat_completions: bool = True,
     reasoning_efforts: tuple[str, ...] | None = None,
     default_reasoning_effort: str | None = None,
+    alias_family: str | None = None,
+    alias_version: tuple[int, int] | None = None,
 ) -> ModelSpec:
     long_context = None
     if any(value is not None for value in (long_input, long_cached_input, long_output)):
@@ -59,6 +63,8 @@ def _spec(
         chat_completions=chat_completions,
         reasoning_efforts=reasoning_efforts,
         default_reasoning_effort=default_reasoning_effort,
+        alias_family=alias_family,
+        alias_version=alias_version,
     )
 
 
@@ -474,6 +480,8 @@ MODEL_REGISTRY = {
     # No documented tokenizer remapping or dated snapshots for these entries.
     "gpt-6-luna": _spec(
         aliases=("6-luna",),
+        alias_family="luna",
+        alias_version=(6, 0),
         short_input=0.10,
         short_cached_input=0.01,
         short_output=0.50,
@@ -485,6 +493,8 @@ MODEL_REGISTRY = {
     ),
     "gpt-6.1-sol": _spec(
         aliases=("6.1-sol",),
+        alias_family="sol",
+        alias_version=(6, 1),
         short_input=2.00,
         short_cached_input=0.10,
         short_output=10.00,
@@ -496,6 +506,8 @@ MODEL_REGISTRY = {
     ),
     "gpt-6-astra": _spec(
         aliases=("6-astra",),
+        alias_family="astra",
+        alias_version=(6, 0),
         short_input=10.00,
         short_cached_input=1.00,
         short_output=50.00,
@@ -523,9 +535,34 @@ def get_request_model_spec(model_name: str) -> ModelSpec | None:
     return MODEL_REGISTRY.get(family)
 
 
+def _get_family_aliases() -> dict[str, str]:
+    """Select the newest tagged plain release supported by this offline catalog."""
+    candidates: dict[str, dict[tuple[int, int], str]] = {}
+    for model_name, spec in MODEL_REGISTRY.items():
+        # Only plain releases opt in; snapshots and endpoint variants stay untagged.
+        if (
+            not spec.chat_completions
+            or spec.alias_family not in {"sol", "luna", "astra"}
+            or spec.alias_version is None
+        ):
+            continue
+        versions = candidates.setdefault(spec.alias_family, {})
+        if spec.alias_version in versions:
+            raise ValueError(
+                f"Duplicate alias version {spec.alias_version} for family `{spec.alias_family}`."
+            )
+        versions[spec.alias_version] = model_name
+    return {family: versions[max(versions)] for family, versions in candidates.items()}
+
+
 def get_valid_models() -> dict[str, tuple[str, ...] | None]:
+    family_aliases = {model: family for family, model in _get_family_aliases().items()}
     return {
-        model_name: spec.aliases or None
+        model_name: (
+            (*spec.aliases, family_aliases[model_name])
+            if model_name in family_aliases
+            else spec.aliases or None
+        )
         for model_name, spec in MODEL_REGISTRY.items()
         if spec.chat_completions
     }
@@ -533,6 +570,9 @@ def get_valid_models() -> dict[str, tuple[str, ...] | None]:
 
 def resolve_model_name(model_name: str) -> str | None:
     normalized_name = model_name.lower()
+    family_model = _get_family_aliases().get(normalized_name)
+    if family_model is not None:
+        return family_model
 
     for canonical_model_name, spec in MODEL_REGISTRY.items():
         if not spec.chat_completions:

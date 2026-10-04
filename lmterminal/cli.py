@@ -12,8 +12,6 @@ from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_n
 from .request_options import validate_request_options
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
-VALID_MODELS = get_valid_models()
-
 
 # The first two parameters are required by Click for a callback.
 def validate_model_name(ctx, param, value):
@@ -294,7 +292,7 @@ def models():
     """
     List the available models.
     """
-    for model, aliases in VALID_MODELS.items():
+    for model, aliases in get_valid_models().items():
         click.echo(model)
         if aliases:
             if len(aliases) == 1:

@@ -12,7 +12,10 @@ from lmterminal.request_options import prepare_request
     ],
 )
 def test_current_reasoning_and_sampling_policy(model, supported, rejected):
-    assert prepare_request(model, []).controls == {}
+    alias = model.rsplit("-", 1)[1]
+    request = prepare_request(alias, [])
+    assert request.model == model
+    assert request.controls == {}
     with pytest.raises(ValueError, match="Temperature is not supported"):
         prepare_request(model, [], temperature=0.3)
     for effort in supported:
@@ -24,7 +27,7 @@ def test_current_reasoning_and_sampling_policy(model, supported, rejected):
         assert request.controls == expected
     for effort in rejected:
         with pytest.raises(ValueError, match="Use --reasoning-effort with one of:"):
-            prepare_request(model, [], reasoning_effort=effort)
+            prepare_request(alias, [], reasoning_effort=effort)
 
 
 @pytest.mark.parametrize("key", ["top_p", "logprobs", "top_logprobs"])
