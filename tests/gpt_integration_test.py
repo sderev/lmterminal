@@ -230,6 +230,12 @@ def test_request_options_cannot_override_owned_controls(monkeypatch, stream, opt
         ("gpt-5.4-mini", "none", 0.3, 0.3),
         ("o3-2025-04-16", "low", 1, None),
         ("gpt-4o", None, 0.3, 0.3),
+        ("gpt-6-luna", None, 1, None),
+        ("gpt-6.1-sol", None, 1, None),
+        ("gpt-6-astra", None, 1, None),
+        ("gpt-6-luna", "none", 0.3, 0.3),
+        ("gpt-6.1-sol", "max", 1, None),
+        ("gpt-6-astra", "low", 1, None),
     ],
 )
 def test_sampling_and_reasoning_controls(monkeypatch, stream, model, effort, temperature, expected):
@@ -262,6 +268,9 @@ def test_sampling_and_reasoning_controls(monkeypatch, stream, model, effort, tem
         ("gpt-5.4", "high", 1, {"top_p": 0.5}),
         ("o3", None, 1, {"extra_body": {"logprobs": True}}),
         ("gpt-5.4-pro", None, 1, {}),
+        ("gpt-6.1-sol", "none", 1, {}),
+        ("gpt-6-astra", "minimal", 1, {}),
+        ("gpt-6-luna", None, 0.3, {}),
     ],
 )
 def test_unsupported_controls_fail_before_client(monkeypatch, model, effort, temperature, options):

@@ -125,7 +125,8 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
 
 @pytest.mark.parametrize("command", [[], ["prompt"]])
 @pytest.mark.parametrize("no_stream", [False, True])
-def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream):
+@pytest.mark.parametrize("model, effort", [("5.4", "high"), ("6-luna", "none"), ("6.1-sol", "max")])
+def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, model, effort):
     monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
     monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "config.json")
     calls = []
@@ -147,9 +148,9 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream):
     monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
     args = command + [
         "-m",
-        "5.4",
+        model,
         "--reasoning-effort",
-        "high",
+        effort,
         "-o",
         "verbosity=low",
         "-o",
@@ -163,11 +164,14 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream):
     assert result.exit_code == 0, result.output
     assert result.stdout == ("hello\n" if no_stream else "hello")
     call = calls[0]
-    assert call["model"] == "gpt-5.4"
-    assert call["reasoning_effort"] == "high"
+    assert call["model"] == f"gpt-{model}"
+    assert call["reasoning_effort"] == effort
     assert call["verbosity"] == "low"
     assert call["max_completion_tokens"] == 100
-    assert "temperature" not in call
+    if effort == "none":
+        assert call["temperature"] == 1
+    else:
+        assert "temperature" not in call
     if not no_stream:
         assert call["stream_options"] == {"include_usage": True}
 
@@ -196,6 +200,27 @@ def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch):
     result = CliRunner().invoke(cli.lmt, ["--temperature", "0.3"], input="hi")
     assert result.exit_code == 2
     assert "Temperature is not supported" in result.output
+
+
+@pytest.mark.parametrize(
+    "model, effort",
+    [("6-luna", "minimal"), ("6.1-sol", "none"), ("6-astra", "none")],
+)
+def test_cli_current_effort_errors_before_key_read(monkeypatch, model, effort):
+    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    result = CliRunner().invoke(cli.lmt, ["-m", model, "--reasoning-effort", effort, "hello"])
+    assert result.exit_code == 2
+    assert f"Reasoning effort `{effort}` is not supported" in result.output
+    assert "Use --reasoning-effort with one of:" in result.output
+
+
+def test_cli_max_uses_shared_policy(monkeypatch):
+    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    result = CliRunner().invoke(
+        cli.lmt, ["-m", "6-luna", "--reasoning-effort", "max", "--temperature", "0.3", "hello"]
+    )
+    assert result.exit_code == 2
+    assert "Temperature is not supported for `gpt-6-luna`" in result.output
 
 
 @pytest.mark.parametrize(

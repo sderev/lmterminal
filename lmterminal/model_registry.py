@@ -8,7 +8,11 @@ REASONING_EFFORTS = (
     "medium",
     "high",
     "xhigh",
+    "max",
 )
+
+_CURRENT_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+_LUNA_REASONING_EFFORTS = ("none", *_CURRENT_REASONING_EFFORTS)
 
 
 @dataclass(frozen=True)
@@ -25,6 +29,8 @@ class ModelSpec:
     long_context: PriceBand | None = None
     tokenizer_model: str | None = None
     chat_completions: bool = True
+    reasoning_efforts: tuple[str, ...] | None = None
+    default_reasoning_effort: str | None = None
 
 
 def _spec(
@@ -38,6 +44,8 @@ def _spec(
     long_output: float | None = None,
     tokenizer_model: str | None = None,
     chat_completions: bool = True,
+    reasoning_efforts: tuple[str, ...] | None = None,
+    default_reasoning_effort: str | None = None,
 ) -> ModelSpec:
     long_context = None
     if any(value is not None for value in (long_input, long_cached_input, long_output)):
@@ -49,6 +57,8 @@ def _spec(
         long_context=long_context,
         tokenizer_model=tokenizer_model,
         chat_completions=chat_completions,
+        reasoning_efforts=reasoning_efforts,
+        default_reasoning_effort=default_reasoning_effort,
     )
 
 
@@ -455,6 +465,45 @@ MODEL_REGISTRY = {
         long_input=60.00,
         long_output=270.00,
         tokenizer_model="gpt-5",
+    ),
+    # Plain Chat Completions, effort lists and Standard USD/1M rates checked 2026-10-04:
+    # https://developers.openai.com/api/docs/models/gpt-6-luna
+    # https://developers.openai.com/api/docs/models/gpt-6.1-sol
+    # https://developers.openai.com/api/docs/models/gpt-6-astra
+    # https://developers.openai.com/api/docs/pricing
+    # No documented tokenizer remapping or dated snapshots for these entries.
+    "gpt-6-luna": _spec(
+        aliases=("6-luna",),
+        short_input=0.10,
+        short_cached_input=0.01,
+        short_output=0.50,
+        long_input=0.20,
+        long_cached_input=0.02,
+        long_output=0.75,
+        reasoning_efforts=_LUNA_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+    ),
+    "gpt-6.1-sol": _spec(
+        aliases=("6.1-sol",),
+        short_input=2.00,
+        short_cached_input=0.10,
+        short_output=10.00,
+        long_input=4.00,
+        long_cached_input=0.20,
+        long_output=15.00,
+        reasoning_efforts=_CURRENT_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+    ),
+    "gpt-6-astra": _spec(
+        aliases=("6-astra",),
+        short_input=10.00,
+        short_cached_input=1.00,
+        short_output=50.00,
+        long_input=20.00,
+        long_cached_input=2.00,
+        long_output=75.00,
+        reasoning_efforts=_CURRENT_REASONING_EFFORTS,
+        # Its published effort list excludes none; no default override is needed.
     ),
 }
 

@@ -32,6 +32,12 @@ def validate_request_options(options):
 
 def sampling_supported(model, reasoning_effort):
     """Apply the documented sampling restrictions for registered families."""
+    spec = get_request_model_spec(model)
+    if spec is not None and spec.reasoning_efforts is not None:
+        effective_effort = (
+            spec.default_reasoning_effort if reasoning_effort is None else reasoning_effort
+        )
+        return effective_effort == "none" and "none" in spec.reasoning_efforts
     family = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model)
     if family in {"gpt-5", "gpt-5-mini", "gpt-5-nano"}:
         return False
@@ -47,6 +53,17 @@ def prepare_request_controls(model, temperature, reasoning_effort, request_optio
     spec = get_request_model_spec(model)
     if spec is not None and not spec.chat_completions:
         raise ValueError(f"Model `{model}` is not supported for Chat Completions generation.")
+    if (
+        reasoning_effort is not None
+        and spec is not None
+        and spec.reasoning_efforts is not None
+        and reasoning_effort not in spec.reasoning_efforts
+    ):
+        supported = ", ".join(spec.reasoning_efforts)
+        raise ValueError(
+            f"Reasoning effort `{reasoning_effort}` is not supported for `{model}`. "
+            f"Use --reasoning-effort with one of: {supported}, or omit it for the model default."
+        )
     controls = dict(request_options or {})
     if reasoning_effort is not None:
         controls["reasoning_effort"] = reasoning_effort
