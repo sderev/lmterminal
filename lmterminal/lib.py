@@ -11,7 +11,9 @@ from rich.markdown import Markdown
 from rich.theme import Theme
 
 from . import gpt_integration as openai_utils
-from .request_options import prepare_request_controls
+from .estimation import estimate_request
+from .model_registry import resolve_model_name
+from .request_options import prepare_request
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
@@ -51,7 +53,9 @@ def prepare_and_generate_response(
         # If a model name is given in the options,
         # it will bypass the model name in the template.
         if model == DEFAULT_MODEL:
-            model = template_model
+            model = resolve_model_name(template_model) if isinstance(template_model, str) else None
+            if model is None:
+                raise click.BadParameter(f"Invalid template model name: {template_model!r}")
 
     if emoji:
         system = add_emoji(system)
@@ -68,25 +72,21 @@ def prepare_and_generate_response(
             },
         ]
 
+    request = _prepare_request(model, prompt, temperature, reasoning_effort, request_options)
     if debug:
-        display_debug_information(prompt, model, temperature)
+        display_debug_information(request.messages, request.model, temperature)
 
     if tokens:
-        display_tokens_count_and_cost(prompt, model)
+        display_tokens_count_and_cost(request)
 
-    stream = not no_stream
+    return _generate_prepared_response(request, raw, not no_stream)
 
-    content, response_time, response = generate_response(
-        model,
-        prompt,
-        raw,
-        stream,
-        temperature,
-        reasoning_effort=reasoning_effort,
-        request_options=request_options,
-    )
 
-    return content, response_time, response
+def _prepare_request(model, prompt, temperature, reasoning_effort, request_options):
+    try:
+        return prepare_request(model, prompt, temperature, reasoning_effort, request_options)
+    except (TypeError, ValueError) as error:
+        raise click.BadParameter(str(error)) from error
 
 
 def add_emoji(system: str) -> str:
@@ -177,11 +177,11 @@ def generate_response(
     """
     Generates a response from a ChatGPT.
     """
-    try:
-        prepare_request_controls(model, temperature, reasoning_effort, request_options)
-    except (TypeError, ValueError) as error:
-        raise click.BadParameter(str(error)) from error
+    request = _prepare_request(model, prompt, temperature, reasoning_effort, request_options)
+    return _generate_prepared_response(request, raw, stream)
 
+
+def _generate_prepared_response(request, raw, stream):
     api_key = get_api_key()
 
     if not api_key:
@@ -222,14 +222,10 @@ def generate_response(
             )
 
         try:
-            content, response_time, response = openai_utils.chatgpt_request(
+            content, response_time, response = openai_utils.send_prepared_request(
                 api_key=api_key,
-                prompt=prompt,
-                model=model,
+                request=request,
                 stream=stream,
-                temperature=temperature,
-                reasoning_effort=reasoning_effort,
-                request_options=request_options,
                 update_markdown_stream=update_markdown_stream if use_live_markdown else None,
             )
 
@@ -293,29 +289,30 @@ def display_debug_information(prompt, model, temperature):
     click.echo("---\n", err=True)
 
 
-def display_tokens_count_and_cost(prompt, model):
-    """
-    Displays the number of tokens in the prompt and the cost of the prompt.
-    """
-    prompt_cost_estimate = openai_utils.estimate_prompt_cost_details(prompt, model)
-
-    click.echo(
-        "Number of tokens in the prompt:"
-        f" {click.style(str(prompt_cost_estimate.num_tokens), fg='yellow')}."
-    )
-    click.echo(
-        f"Cost of the prompt for the {click.style(model, fg='blue')} model is:"
-        f" {click.style(f'${prompt_cost_estimate.cost}', fg='yellow')}."
-    )
-    if prompt_cost_estimate.pricing_context:
-        click.echo(
-            "Pricing tier used for this estimate:"
-            f" {click.style(prompt_cost_estimate.pricing_context, fg='yellow')} context."
-        )
-    click.echo(
-        "This is an input-token estimate, not a bill; output, caching and tool charges are excluded."
-    )
-    sys.exit(0)
+def display_tokens_count_and_cost(request):
+    """Render the local estimate without implying provider usage or a total bill."""
+    estimate = estimate_request(request)
+    click.echo(f"Model: {estimate.model}")
+    if estimate.input_tokens is not None:
+        click.echo(f"Estimated input tokens: ~{estimate.input_tokens}")
+    elif estimate.message_tokens is not None:
+        click.echo(f"Message-only token estimate: ~{estimate.message_tokens}")
+        click.echo("Request input tokens and cost: unavailable")
+    else:
+        click.echo("Request input tokens and cost: unavailable")
+    if estimate.input_cost_usd is not None:
+        click.echo(f"Standard uncached input cost estimate: USD {estimate.input_cost_usd:f}")
+        click.echo(f"Input rate: USD {estimate.input_rate_usd_per_million:f} / 1M tokens")
+    elif estimate.input_tokens is not None:
+        click.echo("Input cost: unavailable")
+    if estimate.pricing_context:
+        click.echo(f"Pricing tier: {estimate.pricing_context} context, based on estimated tokens.")
+    for reason in estimate.warnings:
+        click.echo(f"Note: {reason}")
+    click.echo("Local message framing is heuristic; provider usage may differ.")
+    click.echo("Actual input may cost less with cached tokens; cache hits are not predicted.")
+    click.echo("Excludes output/reasoning, tool fees and service-tier adjustments; not a bill.")
+    sys.exit(1 if estimate.message_tokens is None else 0)
 
 
 def get_api_key() -> str:

@@ -153,7 +153,7 @@ def lmt():
 @click.option(
     "--tokens",
     is_flag=True,
-    help=("Count the number of tokens in the prompt, and display the cost of the request."),
+    help=("Estimate input tokens and Standard uncached input cost locally."),
 )
 @click.option(
     "--no-stream",

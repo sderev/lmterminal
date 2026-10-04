@@ -33,10 +33,26 @@ endpoints, including Responses-only Pro and Codex models, and retired models are
 not supported. Library requests also reject known Responses-only Pro snapshots.
 Model access and availability depend on your OpenAI account.
 
-`--tokens` estimates input tokens and cost without reading your API key or sending
-a request. Estimates include message overhead but exclude output, caching,
-service-tier adjustments and tool charges. For GPT-5.4, the long-context input
-rate applies above 272,000 estimated tokens. Estimates are not bills.
+`--tokens` estimates text input tokens and **Standard uncached input** cost in USD,
+without reading your API key or sending a provider request. Message framing is a
+heuristic; provider usage may differ. Actual input may cost less with cached
+tokens. Output/reasoning, tool fees and service-tier adjustments are excluded.
+For GPT-5.4, the long-context rate applies above 272,000 estimated input tokens;
+uncertainty near that boundary can change the applicable rate. Estimates are not bills.
+
+Tools, functions, schemas and unclassified request options produce a message-only
+subtotal with a named omission, without a whole-request token or cost estimate.
+Unsupported message content (including content parts and tool-call messages), an
+unknown tokenizer or unavailable tokenizer data produces an unavailable result.
+Unknown prices and nonstandard `service_tier` values retain the token estimate but
+leave cost unavailable. Unsupported messages/tokenizers exit with status 1;
+partial estimates exit with status 0. Invalid request controls fail before either
+estimation or generation.
+
+First use may download public tokenizer data through `tiktoken`; no prompt is sent
+in that download. A warmed cache works locally without a provider key. For a
+separate cache location, set `TIKTOKEN_CACHE_DIR`. A cold installation is not
+guaranteed to work offline.
 
 Read a prompt from a file or append instructions to piped text:
 
@@ -88,6 +104,22 @@ lmt --template explain "Explain this code"
 Templates are YAML files in `~/.config/lmt/templates/` with `system`, `user` and
 `model` fields. They prepend instructions to your prompt. `--template` and
 `--system` cannot be used together.
+
+## Library input estimates
+
+Use `lmterminal.request_options.prepare_request(model, messages, ...)` followed by
+`lmterminal.estimation.estimate_request(request)`. The `InputEstimate` result
+contains `message_tokens`, `input_tokens`, `request_complete`, numeric `Decimal`
+`input_cost_usd`/`input_rate_usd_per_million`, and `warnings`; unavailable fields
+are `None`. A complete estimate still uses heuristic framing: 3 tokens per
+message, 1 extra per name, and 3 reply-priming tokens, plus ordinary-text encoding
+of each string value. Supported message fields are `role`, `content`, and optional
+`name`; supported roles are system, developer, user, and assistant. Tokenizer name,
+version and method are included in the result.
+
+This replaces the token/count/cost helpers previously in `gpt_integration`.
+Transport helpers retain unknown-model pass-through; estimation never substitutes
+an unrelated tokenizer or guesses an unknown price.
 
 ## Colors
 
