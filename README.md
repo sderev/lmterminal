@@ -72,6 +72,43 @@ raw response payload.
 
 In Vim, filter selected lines with `:'<,'>!lmt "Rewrite this paragraph"`.
 
+## Diagnosing response delays
+
+Repeat `-v/--verbose` for timing diagnostics on stderr. For example, rerun the
+delayed command from this checkout with its existing model/template/options and
+add `-vvv`:
+
+```bash
+uv run lmt -vvv --model gpt-5.4 "Say hello" 2> timings.log
+uv run lmt -vvv --raw "Say hello" > response.txt 2> timings.log
+```
+
+`-v` shows the finalized model, stream mode, API route, request dispatch, first
+nonempty text, output and completion timings. `-vv` adds prompt/request setup,
+client/output readiness, response/stream readiness, the first SDK stream event
+(which can contain metadata or empty text), and output submission. `-vvv` adds
+event/text-chunk counts and numeric usage totals when the provider already returns
+them; it does not request usage or change generation settings. The response model
+is shown when present on the response or first stream event.
+
+The `+...s` timestamps use a monotonic clock starting at prompt handling; they
+exclude process imports and CLI argument parsing, and include any wait for stdin.
+The final `request_ttft_s` measures dispatch to first nonempty text. Compare it
+with `first_flush_s` for plain output or `first_refresh_s` for Markdown. A large
+wait before text reaches the SDK could involve network setup, SDK retries or the
+provider; these timings do not distinguish those causes. A large gap after text
+reception points to local output work. Markdown refresh completion means the
+renderer returned, and does not guarantee text was visible on screen. Missing
+text is reported as `unavailable`, including content-free tool responses.
+`--no-stream` reports full-response reception rather than stream events.
+`request_s` spans dispatch through response consumption, including output work
+during streaming; `output complete` follows final rendering or output flushing.
+
+Timing diagnostics never print prompts, response text, headers, keys, full URLs or
+arbitrary request options, even at `-vvv`. The separate `--debug` option prints
+prompts; use `-vvv` alone when sharing timings. Checkout changes do not update a
+separately installed `lmt` or consumer such as LMtoolbox's `translate`.
+
 ## Request controls
 
 ```bash

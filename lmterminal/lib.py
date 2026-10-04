@@ -40,10 +40,13 @@ def prepare_and_generate_response(
     *,
     reasoning_effort: str | None = None,
     request_options: dict | None = None,
+    diagnostics=None,
 ):
     """
     Handles the parameters.
     """
+    if diagnostics:
+        diagnostics.mark("request preparation started", level=2)
     if not system:
         system = ""
 
@@ -74,13 +77,15 @@ def prepare_and_generate_response(
         ]
 
     request = _prepare_request(model, prompt, temperature, reasoning_effort, request_options)
+    if diagnostics:
+        diagnostics.request_prepared(request, not no_stream)
     if debug:
         display_debug_information(request.messages, request.model, temperature)
 
     if tokens:
         display_tokens_count_and_cost(request)
 
-    return _generate_prepared_response(request, raw, not no_stream)
+    return _generate_prepared_response(request, raw, not no_stream, diagnostics=diagnostics)
 
 
 def _prepare_request(model, prompt, temperature, reasoning_effort, request_options):
@@ -174,15 +179,20 @@ def generate_response(
     *,
     reasoning_effort: str | None = None,
     request_options: dict | None = None,
+    diagnostics=None,
 ):
     """
     Generates a response from a ChatGPT.
     """
+    if diagnostics:
+        diagnostics.mark("request preparation started", level=2)
     request = _prepare_request(model, prompt, temperature, reasoning_effort, request_options)
-    return _generate_prepared_response(request, raw, stream)
+    if diagnostics:
+        diagnostics.request_prepared(request, stream)
+    return _generate_prepared_response(request, raw, stream, diagnostics=diagnostics)
 
 
-def _generate_prepared_response(request, raw, stream):
+def _generate_prepared_response(request, raw, stream, *, diagnostics=None):
     console = Console()
     use_live_markdown = (
         stream
@@ -213,6 +223,12 @@ def _generate_prepared_response(request, raw, stream):
     live_context = (
         Live("", console=console, auto_refresh=False) if use_live_markdown else nullcontext()
     )
+    if diagnostics:
+        diagnostics.mark(
+            "output ready",
+            level=2,
+            detail="mode=Markdown" if use_live_markdown else "mode=plain",
+        )
     with live_context as live:
 
         def update_markdown_stream(chunk: str) -> None:
@@ -220,10 +236,14 @@ def _generate_prepared_response(request, raw, stream):
             if not chunk:
                 return
             markdown_stream += chunk
+            if diagnostics:
+                diagnostics.first("first text submitted to Markdown", level=2)
             live.update(
                 Markdown(markdown_stream, code_theme=code_block_theme),
                 refresh=True,
             )
+            if diagnostics:
+                diagnostics.first("first Markdown refresh returned")
 
         try:
             content, response_time, response = openai_utils.send_prepared_request(
@@ -231,8 +251,10 @@ def _generate_prepared_response(request, raw, stream):
                 request=request,
                 stream=stream,
                 update_markdown_stream=update_markdown_stream if use_live_markdown else None,
+                diagnostics=diagnostics,
             )
 
+            has_text = bool(content)
             # This is temporary to ensure that the last line always ends with a newline
             # This will be removed when refactored
             if not content.endswith("\n"):
@@ -240,7 +262,11 @@ def _generate_prepared_response(request, raw, stream):
             #############################
 
             if not stream:
-                print(content, end="")
+                if diagnostics and has_text:
+                    diagnostics.first("first text submitted to output", level=2)
+                print(content, end="", flush=True)
+                if diagnostics and has_text:
+                    diagnostics.first("first text flushed")
 
         except openai.RateLimitError as error:
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
@@ -262,8 +288,9 @@ def _generate_prepared_response(request, raw, stream):
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
             sys.exit(1)
 
-        else:
-            return content, response_time, response
+    if diagnostics:
+        diagnostics.output_complete()
+    return content, response_time, response
 
 
 def display_debug_information(prompt, model, temperature):

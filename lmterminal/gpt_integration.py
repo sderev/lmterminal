@@ -50,6 +50,7 @@ def chatgpt_request(
     *,
     reasoning_effort=None,
     request_options=None,
+    diagnostics=None,
 ):
     """
     Sends a request to the OpenAI Chat API.
@@ -61,11 +62,21 @@ def chatgpt_request(
             * raw_response (non-stream) or collected stream chunks (stream)
     """
     request = prepare_request(model, prompt, temperature, reasoning_effort, request_options)
-    return send_prepared_request(api_key, request, n, stop, stream, update_markdown_stream)
+    if diagnostics:
+        diagnostics.request_prepared(request, stream)
+    return send_prepared_request(
+        api_key,
+        request,
+        n,
+        stop,
+        stream,
+        update_markdown_stream,
+        diagnostics=diagnostics,
+    )
 
 
 def send_prepared_request(
-    api_key, request, n=1, stop=None, stream=False, update_markdown_stream=None
+    api_key, request, n=1, stop=None, stream=False, update_markdown_stream=None, *, diagnostics=None
 ):
     """Send a finalized request without recomposing or revalidating it."""
     start_time = time.monotonic_ns()
@@ -75,7 +86,14 @@ def send_prepared_request(
     if stop is not None:
         request_kwargs["stop"] = stop
     client = _get_client(api_key)
+    if diagnostics:
+        diagnostics.mark("client ready", level=2)
+        diagnostics.mark("request dispatched")
     response = client.chat.completions.create(**request_kwargs)
+    if diagnostics:
+        diagnostics.received(response, stream=stream)
+    usage = getattr(response, "usage", None)
+    events = text_chunks = 0
 
     if stream:
         # Create variables to collect the stream of chunks
@@ -84,17 +102,35 @@ def send_prepared_request(
 
         # Iterate through the stream of events
         for chunk in response:
+            events += 1
+            if diagnostics:
+                model = getattr(chunk, "model", None)
+                diagnostics.first(
+                    "first stream event received",
+                    level=2,
+                    detail=f"model={model!r}" if isinstance(model, str) else "",
+                )
+            if getattr(chunk, "usage", None) is not None:
+                usage = chunk.usage
             collected_chunks.append(chunk)  # save the event response
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta  # extract the delta
+            if delta.content:
+                text_chunks += 1
+                if diagnostics:
+                    diagnostics.first("first text received")
             if delta.content is not None:
                 collected_messages.append(delta.content)  # save the message
 
             if update_markdown_stream:
                 update_markdown_stream(delta.content or "")
             else:
+                if diagnostics and delta.content:
+                    diagnostics.first("first text submitted to output", level=2)
                 print(delta.content or "", end="", flush=True)
+                if diagnostics and delta.content:
+                    diagnostics.first("first text flushed")
 
         # Save the time delay and text received
         response_time = (time.monotonic_ns() - start_time) / 1e9
@@ -104,11 +140,15 @@ def send_prepared_request(
     else:
         # Extract and save the generated response
         generated_text = response.choices[0].message.content or ""
+        if diagnostics and generated_text:
+            diagnostics.first("first text received")
 
         # Save the time delay
         response_time = (time.monotonic_ns() - start_time) / 1e9
         response_payload = response
 
+    if diagnostics:
+        diagnostics.completed(events=events, text_chunks=text_chunks, usage=usage)
     return (
         generated_text,
         response_time,
