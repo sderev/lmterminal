@@ -9,11 +9,13 @@ description = "Interact with OpenAI's models from the comfort of your terminal."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "Sébastien De Revière" }]
 dependencies = [
     "click",
     "click-default-group",
     "openai>=2,<3",
+    "pygments>=2.20",
     "PyYAML",
     "rich",
     "tiktoken",
