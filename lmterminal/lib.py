@@ -11,6 +11,7 @@ from rich.markdown import Markdown
 from rich.theme import Theme
 
 from . import gpt_integration as openai_utils
+from .code_themes import resolve_code_theme
 from .estimation import estimate_request
 from .model_registry import resolve_model_name
 from .request_options import prepare_request
@@ -182,6 +183,23 @@ def generate_response(
 
 
 def _generate_prepared_response(request, raw, stream):
+    console = Console()
+    use_live_markdown = (
+        stream
+        and not raw
+        and getattr(sys.stdout, "isatty", lambda: False)()
+        and console.is_terminal
+        and console.is_interactive
+        and not console.is_dumb_terminal
+    )
+    code_block_theme = None
+    if use_live_markdown:
+        try:
+            code_block_theme = resolve_code_theme(get_markdown_code_block_theme())
+        except ValueError as error:
+            raise click.ClickException(str(error)) from error
+        console.push_theme(Theme({"markdown.code": get_markdown_inline_code_theme()}))
+
     api_key = get_api_key()
 
     if not api_key:
@@ -191,21 +209,7 @@ def _generate_prepared_response(request, raw, stream):
         click.echo(f"  {click.style('lmt key set', fg='blue')}\n")
         sys.exit(1)
 
-    # Theming for Rich Markdown
-    code_block_theme = get_markdown_code_block_theme()
-    inline_code_theme = get_markdown_inline_code_theme()
-    custom_theme = Theme({"markdown.code": inline_code_theme})
-
-    console = Console(theme=custom_theme)
     markdown_stream = ""
-    use_live_markdown = (
-        stream
-        and not raw
-        and getattr(sys.stdout, "isatty", lambda: False)()
-        and console.is_terminal
-        and console.is_interactive
-        and not console.is_dumb_terminal
-    )
     live_context = (
         Live("", console=console, auto_refresh=False) if use_live_markdown else nullcontext()
     )

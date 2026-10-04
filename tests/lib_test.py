@@ -2,9 +2,15 @@ import io
 import sys
 from types import SimpleNamespace
 
+import click
 import pytest
+from click.testing import CliRunner
+from pygments.token import Keyword, Name
+from rich.syntax import PygmentsSyntaxTheme
 
-from lmterminal import lib
+from lmterminal import cli, lib
+from lmterminal.code_themes import AlabasterStyle, resolve_code_theme
+from lmterminal.estimation import InputEstimate
 
 
 class TerminalOutput(io.TextIOWrapper):
@@ -16,7 +22,9 @@ class TerminalOutput(io.TextIOWrapper):
         return self._is_terminal
 
 
-def _use_terminal(monkeypatch, *, is_terminal=True, term="xterm", tty_interactive=None):
+def _use_terminal(
+    monkeypatch, *, is_terminal=True, term="xterm", tty_interactive=None, color_system=None
+):
     output = TerminalOutput(is_terminal)
     monkeypatch.setattr(sys, "stdout", output)
     terminal_env = {"TERM": term}
@@ -29,7 +37,7 @@ def _use_terminal(monkeypatch, *, is_terminal=True, term="xterm", tty_interactiv
         lambda **kwargs: console_type(
             force_terminal=is_terminal,
             _environ=terminal_env,
-            color_system=None,
+            color_system=color_system,
             width=80,
             **kwargs,
         ),
@@ -53,6 +61,88 @@ def _prepare_generate_response(monkeypatch):
     monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
     monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "monokai")
     monkeypatch.setattr(lib, "get_markdown_inline_code_theme", lambda: "blue on black")
+
+
+def test_alabaster_resolution_preserves_palette_and_installed_styles():
+    assert AlabasterStyle.background_color == "#f8f8f8"
+    assert AlabasterStyle.style_for_token(Keyword)["color"] == "7a3e9d"
+    assert AlabasterStyle.style_for_token(Name.Function)["color"] == "325cc0"
+    theme = resolve_code_theme("alabaster")
+    assert isinstance(theme, PygmentsSyntaxTheme)
+    assert theme.get_style_for_token(Keyword).color.triplet == (122, 62, 157)
+    assert resolve_code_theme("monokai").get_style_for_token(Keyword).color is not None
+    assert resolve_code_theme("ansi_dark").get_style_for_token(Keyword).color is not None
+
+
+def test_generate_response_renders_configured_alabaster_and_inline_colors(monkeypatch):
+    _prepare_generate_response(monkeypatch)
+    monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "alabaster")
+    monkeypatch.setattr(lib, "get_markdown_inline_code_theme", lambda: "#325cc0 on #f0f0f0")
+    output = _use_terminal(monkeypatch, color_system="truecolor")
+    text = 'Inline `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n'
+
+    def send(**kwargs):
+        kwargs["update_markdown_stream"](text)
+        return text, 0, None
+
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", send)
+    lib.generate_response(prompt=[{"role": "user", "content": "fixture"}])
+    rendered = output.buffer.getvalue().decode("UTF-8")
+    assert "38;2;122;62;157" in rendered  # Alabaster keyword purple, not default green.
+    assert "38;2;50;92;192;48;2;240;240;240" in rendered  # Exact inline preference.
+
+
+def test_unknown_code_theme_fails_before_credentials_or_provider(monkeypatch):
+    _use_terminal(monkeypatch)
+    monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "missing-lmt-style")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Invalid formatted theme must fail before credentials or provider work")
+
+    monkeypatch.setattr(lib, "get_api_key", forbidden)
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", forbidden)
+    with pytest.raises(click.ClickException, match="missing-lmt-style.*unavailable") as error:
+        lib.generate_response(prompt=[{"role": "user", "content": "fixture"}])
+    assert "code_block_theme" in error.value.format_message()
+    assert "--raw" in error.value.format_message()
+
+
+@pytest.mark.parametrize(
+    "raw,stream,is_terminal", [(True, True, True), (False, False, True), (False, True, False)]
+)
+def test_plain_response_skips_theme_validation(monkeypatch, raw, stream, is_terminal):
+    _prepare_generate_response(monkeypatch)
+    _use_terminal(monkeypatch, is_terminal=is_terminal)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Plain responses must not load or validate formatting preferences")
+
+    monkeypatch.setattr(lib, "get_markdown_code_block_theme", forbidden)
+    monkeypatch.setattr(lib, "get_markdown_inline_code_theme", forbidden)
+
+    def send(**kwargs):
+        assert kwargs["update_markdown_stream"] is None
+        return "hello", 0, None
+
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", send)
+    assert (
+        lib.generate_response(
+            prompt=[{"role": "user", "content": "fixture"}], raw=raw, stream=stream
+        )[0]
+        == "hello\n"
+    )
+
+
+def test_token_estimate_skips_response_theme_validation(monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Token estimates must not load themes or credentials")
+
+    monkeypatch.setattr(lib, "get_markdown_code_block_theme", forbidden)
+    monkeypatch.setattr(lib, "get_api_key", forbidden)
+    monkeypatch.setattr(lib, "estimate_request", lambda _: InputEstimate(model="gpt-5-nano"))
+    result = CliRunner().invoke(cli.lmt, ["--tokens"], input="fixture")
+    assert result.exit_code == 1  # Explicit unavailable estimate, independent of themes.
+    assert "Request input tokens and cost: unavailable" in result.output
 
 
 def test_generate_response_handles_rate_limit_error(monkeypatch):
