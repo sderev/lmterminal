@@ -6,6 +6,7 @@ import sys
 import click
 from click_default_group import DefaultGroup
 
+from .diagnostics import RequestDiagnostics
 from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
 from .request_options import validate_request_options
@@ -181,6 +182,12 @@ def lmt():
     default=False,
     help="Print debug information.",
 )
+@click.option(
+    "-v",
+    "--verbose",
+    count=True,
+    help="Request timings on stderr; repeat for setup/events (-vv) and usage counts (-vvv).",
+)
 @click.pass_context
 def prompt(
     ctx,
@@ -197,12 +204,16 @@ def prompt(
     rich,
     prompt_input,
     debug,
+    verbose,
 ):
     """
     Talk to ChatGPT.
 
     Example: lmt prompt "Say hello" --emoji
     """
+    diagnostics = RequestDiagnostics(verbose) if verbose else None
+    if diagnostics:
+        diagnostics.mark("prompt handling started", level=2)
     prompt_input = " ".join(prompt_input).strip()
 
     # Allow for the appending of an additional prompt to the piped stdin content
@@ -270,6 +281,7 @@ def prompt(
         debug,
         reasoning_effort=reasoning_effort,
         request_options=request_options,
+        diagnostics=diagnostics,
     )
 
     # Same as above (readibility), but after the LLM's response

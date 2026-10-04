@@ -338,7 +338,7 @@ def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
     calls = []
     payload = object()
 
-    def fake_generate(request, raw, stream):
+    def fake_generate(request, raw, stream, *, diagnostics=None):
         calls.append((request.model, request.messages, raw, stream, request.controls))
         return "hello\n", 0.1, payload
 
