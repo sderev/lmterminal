@@ -292,21 +292,34 @@ def display_debug_information(prompt, model, temperature):
 def display_tokens_count_and_cost(request):
     """Render the local estimate without implying provider usage or a total bill."""
     estimate = estimate_request(request)
-    click.echo(f"Model: {estimate.model}")
+    click.echo(f"Model: {click.style(estimate.model, fg='blue')}")
     if estimate.input_tokens is not None:
-        click.echo(f"Estimated input tokens: ~{estimate.input_tokens}")
+        click.echo(
+            f"Estimated input tokens: {click.style(f'~{estimate.input_tokens}', fg='yellow')}"
+        )
     elif estimate.message_tokens is not None:
-        click.echo(f"Message-only token estimate: ~{estimate.message_tokens}")
+        click.echo(
+            f"Message-only token estimate: {click.style(f'~{estimate.message_tokens}', fg='yellow')}"
+        )
         click.echo("Request input tokens and cost: unavailable")
     else:
         click.echo("Request input tokens and cost: unavailable")
     if estimate.input_cost_usd is not None:
-        click.echo(f"Standard uncached input cost estimate: USD {estimate.input_cost_usd:f}")
-        click.echo(f"Input rate: USD {estimate.input_rate_usd_per_million:f} / 1M tokens")
+        click.echo(
+            "Standard uncached input cost estimate:"
+            f" {click.style(f'USD {estimate.input_cost_usd:f}', fg='yellow')}"
+        )
+        click.echo(
+            f"Input rate: {click.style(f'USD {estimate.input_rate_usd_per_million:f}', fg='yellow')}"
+            " / 1M tokens"
+        )
     elif estimate.input_tokens is not None:
         click.echo("Input cost: unavailable")
     if estimate.pricing_context:
-        click.echo(f"Pricing tier: {estimate.pricing_context} context, based on estimated tokens.")
+        click.echo(
+            f"Pricing tier: {click.style(estimate.pricing_context, fg='yellow')} context,"
+            " based on estimated tokens."
+        )
     for reason in estimate.warnings:
         click.echo(f"Note: {reason}")
     click.echo("Local message framing is heuristic; provider usage may differ.")

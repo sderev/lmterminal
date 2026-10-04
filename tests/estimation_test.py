@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
+import click
 import pytest
 import tiktoken.load
 import tiktoken.registry
@@ -89,6 +90,37 @@ def test_real_text_oracles_and_literal_cli(real_encoder):
 )
 def test_numeric_prices(model, tokens, rate, cost, tier):
     assert estimation.input_price(model, tokens) == (Decimal(rate), Decimal(cost), tier)
+
+
+@pytest.mark.parametrize("scope", ["full", "partial", "unavailable"])
+def test_cli_estimate_colors_and_plain_output(monkeypatch, scope):
+    estimate = estimation.InputEstimate(
+        model="gpt-5.4",
+        message_tokens=12 if scope != "unavailable" else None,
+        input_tokens=12 if scope == "full" else None,
+        input_cost_usd=Decimal("0.000030") if scope == "full" else None,
+        input_rate_usd_per_million=Decimal("2.5") if scope == "full" else None,
+        pricing_context="short" if scope == "full" else None,
+        warnings=("Option `tools` is not counted locally.",) if scope == "partial" else (),
+    )
+    monkeypatch.setattr(lib, "estimate_request", lambda _: estimate)
+    runner = CliRunner()
+    colored = runner.invoke(cli.lmt, ["--tokens"], input="hello", color=True)
+    plain = runner.invoke(cli.lmt, ["--tokens"], input="hello")
+    assert colored.exit_code == plain.exit_code == (1 if scope == "unavailable" else 0)
+    assert click.style("gpt-5.4", fg="blue") in colored.output
+    if scope != "unavailable":
+        assert click.style("~12", fg="yellow") in colored.output
+    if scope == "full":
+        for value in ("USD 0.000030", "USD 2.5", "short"):
+            assert click.style(value, fg="yellow") in colored.output
+    else:
+        assert "Request input tokens and cost: unavailable" in colored.output
+    assert "\x1b[" not in plain.output
+    assert click.unstyle(colored.output) == plain.output
+    assert "Excludes output/reasoning, tool fees and service-tier adjustments; not a bill." in (
+        colored.output
+    )
 
 
 @pytest.mark.parametrize(
