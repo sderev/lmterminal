@@ -7,6 +7,25 @@ from click.testing import CliRunner
 from lmterminal import cli, lib
 
 
+def test_top_level_help_points_to_prompt_controls():
+    result = CliRunner().invoke(cli.lmt, ["--help"])
+    assert result.exit_code == 0
+    assert "lmt prompt --help" in result.output
+    assert "--reasoning-effort" in result.output
+    assert "model-dependent" in result.output
+
+
+def test_prompt_help_explains_reasoning_default_and_debug_disclosure():
+    result = CliRunner().invoke(cli.lmt, ["prompt", "--help"])
+    assert result.exit_code == 0
+    output = " ".join(result.output.split())
+    assert "none to disable reasoning where supported" in output
+    assert "Omitted model/effort use gpt-6-luna with none" in output
+    assert "explicit models retain their provider default when effort is omitted" in output
+    assert "[none|minimal|low|medium|high|xhigh|max]" in output
+    assert "Print prompts, model and requested temperature to stderr" in output
+
+
 @pytest.mark.parametrize(
     "alias, canonical",
     [

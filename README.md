@@ -139,9 +139,12 @@ lmt -m gpt-6.1-sol --reasoning-effort max "Explain this function"
 lmt -o max_completion_tokens=500 -o stream_options.include_usage=true "Say hello"
 ```
 
-`--reasoning-effort` overrides the effort for the selected model. Supported
-values depend on the model. The default temperature of 1 is omitted for models
-that do not support sampling, including GPT-5/nano/mini and o-series models;
+Run `lmt prompt --help` for prompt options (also accepted without `prompt`).
+`--reasoning-effort none` requests no reasoning where supported. Omitting model
+and effort uses Luna with `none`; an explicitly selected model keeps its provider
+reasoning default when effort is omitted. Supported values depend on the model.
+The default temperature of 1 is omitted for models that do not support sampling,
+including GPT-5/nano/mini and o-series models;
 other temperature values are rejected for these models. GPT-5.1, GPT-5.2 and
 GPT-5.4 variants allow sampling with reasoning effort `none` (their default).
 
