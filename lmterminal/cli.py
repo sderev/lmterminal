@@ -100,6 +100,9 @@ def lmt():
     """
     Talk to ChatGPT.
 
+    Use lmt prompt --help for prompt options, including --reasoning-effort.
+    Reasoning effort is model-dependent.
+
     Documentation: https://github.com/sderev/lmterminal
     """
 
@@ -142,8 +145,9 @@ def lmt():
     "--reasoning-effort",
     type=click.Choice(REASONING_EFFORTS),
     help=(
-        "Set reasoning effort. Omitted model/effort use gpt-6-luna with none; "
-        "explicit models retain their model default."
+        "Model-dependent reasoning effort. Use none to disable reasoning where supported. "
+        "Omitted model/effort use gpt-6-luna with none; "
+        "explicit models retain their provider default when effort is omitted."
     ),
 )
 @click.option(
@@ -183,7 +187,7 @@ def lmt():
     "--debug",
     is_flag=True,
     default=False,
-    help="Print debug information.",
+    help="Print prompts, model and requested temperature to stderr.",
 )
 @click.option(
     "-v",
