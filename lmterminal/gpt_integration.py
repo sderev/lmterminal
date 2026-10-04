@@ -1,12 +1,9 @@
 import sys
 import time
-from dataclasses import dataclass
 
 import openai
-import tiktoken
 
-from .model_registry import get_input_price_per_million, get_price_band, get_tokenizer_model
-from .request_options import prepare_request_controls
+from .request_options import prepare_request
 
 _client = None
 
@@ -63,10 +60,18 @@ def chatgpt_request(
             * response_time (seconds)
             * raw_response (non-stream) or collected stream chunks (stream)
     """
-    start_time = time.monotonic_ns()
+    request = prepare_request(model, prompt, temperature, reasoning_effort, request_options)
+    return send_prepared_request(api_key, request, n, stop, stream, update_markdown_stream)
 
-    controls = prepare_request_controls(model, temperature, reasoning_effort, request_options)
-    request_kwargs = dict(messages=prompt, model=model, n=n, stream=stream, **controls)
+
+def send_prepared_request(
+    api_key, request, n=1, stop=None, stream=False, update_markdown_stream=None
+):
+    """Send a finalized request without recomposing or revalidating it."""
+    start_time = time.monotonic_ns()
+    request_kwargs = dict(
+        messages=request.messages, model=request.model, n=n, stream=stream, **request.controls
+    )
     if stop is not None:
         request_kwargs["stop"] = stop
     client = _get_client(api_key)
@@ -108,67 +113,6 @@ def chatgpt_request(
         generated_text,
         response_time,
         response_payload,
-    )
-
-
-def num_tokens_from_string(string, model=DEFAULT_MODEL):
-    """Returns the number of tokens in a text string."""
-    model = get_tokenizer_model(model)
-    try:
-        encoding = tiktoken.encoding_for_model(model)
-    except KeyError:
-        encoding = tiktoken.get_encoding("cl100k_base")
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-
-def num_tokens_from_messages(messages, model=DEFAULT_MODEL):
-    """Returns the number of tokens used by a list of messages."""
-    model = get_tokenizer_model(model)
-    try:
-        encoding = tiktoken.encoding_for_model(model)
-    except KeyError:
-        print("Warning: model not found. Using cl100k_base encoding.")
-        encoding = tiktoken.get_encoding("cl100k_base")
-
-    tokens_per_message = 3
-    tokens_per_name = 1
-
-    num_tokens = 0
-    for message in messages:
-        num_tokens += tokens_per_message
-        for key, value in message.items():
-            num_tokens += len(encoding.encode(value))
-            if key == "name":
-                num_tokens += tokens_per_name
-    num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
-    return num_tokens
-
-
-def estimated_cost(num_tokens, price_per_1M_tokens):
-    """Returns the estimated cost of a number of tokens."""
-    return f"{num_tokens / 10**6 * price_per_1M_tokens:.6f}"
-
-
-@dataclass(frozen=True)
-class PromptCostEstimate:
-    num_tokens: int
-    price_per_1m_tokens: float
-    cost: str
-    pricing_context: str | None
-
-
-def estimate_prompt_cost_details(message, model):
-    """Returns prompt token and pricing details for a model."""
-    num_tokens = num_tokens_from_messages(message, model)
-    price_per_1m_tokens = get_input_price_per_million(model, num_tokens)
-    _, pricing_context = get_price_band(model, num_tokens)
-
-    return PromptCostEstimate(
-        num_tokens=num_tokens,
-        price_per_1m_tokens=price_per_1m_tokens,
-        cost=estimated_cost(num_tokens, price_per_1m_tokens),
-        pricing_context=pricing_context,
     )
 
 

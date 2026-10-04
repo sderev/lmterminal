@@ -1,7 +1,8 @@
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 
-from .model_registry import get_request_model_spec
+from .model_registry import get_request_model_spec, resolve_model_name
 
 RESERVED_REQUEST_OPTION_KEYS = {
     "messages": None,
@@ -65,3 +66,21 @@ def prepare_request_controls(model, temperature, reasoning_effort, request_optio
                     f"Option `{key}` is not supported for `{model}` with this reasoning effort."
                 )
     return controls
+
+
+@dataclass(frozen=True)
+class PreparedRequest:
+    """Effective messages, canonical model and validated optional controls."""
+
+    model: str
+    messages: object
+    controls: dict
+
+
+def prepare_request(model, messages, temperature=1, reasoning_effort=None, request_options=None):
+    """Finalize once before estimation or transport; unknown library models pass through."""
+    if not isinstance(model, str) or not model:
+        raise ValueError("Model must be a nonempty string.")
+    model = resolve_model_name(model) or model
+    controls = prepare_request_controls(model, temperature, reasoning_effort, request_options)
+    return PreparedRequest(model, messages, controls)

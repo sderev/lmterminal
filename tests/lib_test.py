@@ -67,7 +67,7 @@ def test_generate_response_handles_rate_limit_error(monkeypatch):
     def fake_rate_limit_handler():
         called["value"] = True
 
-    monkeypatch.setattr(lib.openai_utils, "chatgpt_request", fake_chatgpt_request)
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
     monkeypatch.setattr(lib.openai_utils, "handle_rate_limit_error", fake_rate_limit_handler)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -89,7 +89,7 @@ def test_generate_response_handles_authentication_error(monkeypatch):
     def fake_auth_handler():
         called["value"] = True
 
-    monkeypatch.setattr(lib.openai_utils, "chatgpt_request", fake_chatgpt_request)
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
     monkeypatch.setattr(lib.openai_utils, "handle_authentication_error", fake_auth_handler)
 
     with pytest.raises(SystemExit) as exc_info:
@@ -106,7 +106,7 @@ def test_generate_response_handles_api_connection_error(monkeypatch, capsys):
     def fake_chatgpt_request(**_kwargs):
         raise DummyAPIConnectionError("network down")
 
-    monkeypatch.setattr(lib.openai_utils, "chatgpt_request", fake_chatgpt_request)
+    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
 
     with pytest.raises(SystemExit) as exc_info:
         lib.generate_response(prompt=[{"role": "user", "content": "hello"}])
@@ -248,11 +248,11 @@ def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
     calls = []
     payload = object()
 
-    def fake_generate(model, prompt, raw, stream, temperature, **kwargs):
-        calls.append((model, prompt, raw, stream, temperature, kwargs))
+    def fake_generate(request, raw, stream):
+        calls.append((request.model, request.messages, raw, stream, request.controls))
         return "hello\n", 0.1, payload
 
-    monkeypatch.setattr(lib, "generate_response", fake_generate)
+    monkeypatch.setattr(lib, "_generate_prepared_response", fake_generate)
     result = lib.prepare_and_generate_response(
         system="Reply concisely.",
         template=None,
@@ -278,10 +278,11 @@ def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
             ],
             True,
             False,
-            0.3,
             {
+                "temperature": 0.3,
                 "reasoning_effort": "none",
-                "request_options": {"verbosity": "low", "max_completion_tokens": 100},
+                "verbosity": "low",
+                "max_completion_tokens": 100,
             },
         )
     ]
