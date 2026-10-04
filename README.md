@@ -161,7 +161,9 @@ an unrelated tokenizer or guesses an unknown price.
 ## Colors
 
 `code_block_theme` accepts the bundled `alabaster` palette or an installed Pygments
-style. Unknown styles fail before a provider request when Rich formatting is used;
+style. Alabaster code blocks use a `#f0f0f0` background for contrast with Alabaster
+terminals, preserving the palette's foreground colors.
+Unknown styles fail before a provider request when Rich formatting is used;
 choose an available style or use `--raw`. Plain output and `--tokens` do not validate
 response themes. `inline_code_theme` accepts a Rich foreground/background style.
 Only the top-level keys below configure these colors; nested `shellgenius` settings

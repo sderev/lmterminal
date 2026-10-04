@@ -64,7 +64,7 @@ def _prepare_generate_response(monkeypatch):
 
 
 def test_alabaster_resolution_preserves_palette_and_installed_styles():
-    assert AlabasterStyle.background_color == "#f8f8f8"
+    assert AlabasterStyle.background_color == "#f0f0f0"
     assert AlabasterStyle.style_for_token(Keyword)["color"] == "7a3e9d"
     assert AlabasterStyle.style_for_token(Name.Function)["color"] == "325cc0"
     theme = resolve_code_theme("alabaster")
@@ -88,8 +88,9 @@ def test_generate_response_renders_configured_alabaster_and_inline_colors(monkey
     monkeypatch.setattr(lib.openai_utils, "send_prepared_request", send)
     lib.generate_response(prompt=[{"role": "user", "content": "fixture"}])
     rendered = output.buffer.getvalue().decode("UTF-8")
-    assert "38;2;122;62;157" in rendered  # Alabaster keyword purple, not default green.
-    assert "38;2;50;92;192;48;2;240;240;240" in rendered  # Exact inline preference.
+    assert "38;2;122;62;157;48;2;240;240;240mdef" in rendered  # Purple code on grey.
+    assert "\x1b[48;2;240;240;240m" + " " * 80 + "\x1b[0m" in rendered  # Block padding.
+    assert "Inline \x1b[38;2;50;92;192;48;2;240;240;240mfib\x1b[0m." in rendered
 
 
 def test_unknown_code_theme_fails_before_credentials_or_provider(monkeypatch):

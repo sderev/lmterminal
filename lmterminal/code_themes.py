@@ -2,7 +2,8 @@
 
 AlabasterStyle is adapted from shellgenius/theme.py (Apache-2.0):
 https://github.com/sderev/shellgenius/blob/89fb50fb9ac891e121fb2832dccbfb67b23da79b/shellgenius/theme.py
-Changes: copy the standalone style and resolve it locally without a plugin.
+Changes: copy the standalone style, resolve it locally without a plugin, and
+use a #f0f0f0 background for contrast with Alabaster terminals.
 ShellGenius's Apache-2.0 terms are included in the repository LICENSE.
 
 The palette derives from sderev/alabaster.vim (MIT):
@@ -55,10 +56,11 @@ class AlabasterStyle(Style):
     """Light Pygments style derived from sderev/alabaster.vim.
 
     Color palette: https://github.com/sderev/alabaster.vim
+    Background adapted to #f0f0f0 for contrast with Alabaster terminals.
     """
 
     name = "alabaster"
-    background_color = "#f8f8f8"
+    background_color = "#f0f0f0"
 
     styles: ClassVar[dict] = {
         Token: "#000000",
