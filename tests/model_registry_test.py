@@ -11,6 +11,9 @@ from lmterminal import cli, gpt_integration, lib, model_registry
         ("GPT-5.4-MINI", "gpt-5.4-mini"),
         ("gpt-3.5-turbo-0125", "gpt-3.5-turbo-0125"),
         ("chatgpt", "gpt-3.5-turbo"),
+        ("6-luna", "gpt-6-luna"),
+        ("6.1-sol", "gpt-6.1-sol"),
+        ("6-astra", "gpt-6-astra"),
     ],
 )
 def test_resolve_chat_model(name, canonical):
@@ -51,6 +54,8 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
     result = CliRunner().invoke(cli.lmt, ["models"])
     assert result.exit_code == 0
     assert "gpt-5.4" in result.output
+    for model in ("gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"):
+        assert model in result.output
     assert "gpt-3.5-turbo-0125" in result.output
     assert "gpt-5.4-pro" not in result.output
     assert "gpt-5.3-codex" not in result.output
@@ -87,3 +92,23 @@ def test_source_backed_legacy_prices(model, input_price, output_price):
     assert band.output == output_price
     assert band.cached_input is None
     assert tier is None
+
+
+@pytest.mark.parametrize(
+    "model, short, long",
+    [
+        ("gpt-6-luna", (0.10, 0.01, 0.50), (0.20, 0.02, 0.75)),
+        ("gpt-6.1-sol", (2.00, 0.10, 10.00), (4.00, 0.20, 15.00)),
+        ("gpt-6-astra", (10.00, 1.00, 50.00), (20.00, 2.00, 75.00)),
+    ],
+)
+def test_current_standard_prices_and_boundary(model, short, long):
+    # OpenAI Standard pricing table, checked 2026-10-04; USD per million tokens.
+    assert model_registry.get_price_band(model, 272_000) == (
+        model_registry.PriceBand(*short),
+        "short",
+    )
+    assert model_registry.get_price_band(model, 272_001) == (
+        model_registry.PriceBand(*long),
+        "long",
+    )

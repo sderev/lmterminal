@@ -16,6 +16,23 @@ from lmterminal import cli, estimation, gpt_integration, lib
 from lmterminal.request_options import prepare_request
 
 
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"])
+def test_current_ids_have_no_guessed_tokenizer(monkeypatch, model):
+    def unknown_tokenizer(name):
+        assert name == model
+        raise KeyError(name)
+
+    monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", unknown_tokenizer)
+    result = estimation.estimate_request(
+        prepare_request(model, [{"role": "user", "content": "hi"}])
+    )
+    assert result.encoding is None
+    assert result.message_tokens is None
+    assert result.input_tokens is None
+    assert result.input_cost_usd is None
+    assert result.warnings == ("No known tokenizer for this model.",)
+
+
 @pytest.fixture(autouse=True)
 def no_provider_or_download(monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
