@@ -30,6 +30,11 @@ def _build_client(response):
         ({"model": "sol"}, "gpt-6.1-sol", {}),
         ({"reasoning_effort": "high"}, "gpt-6-luna", {"reasoning_effort": "high"}),
         ({"reasoning_effort": None}, "gpt-6-luna", {}),
+        ({"temperature": None}, "gpt-6-luna", {"reasoning_effort": "none"}),
+        ({"model": "gpt-4o", "temperature": None}, "gpt-4o", {}),
+        ({"model": "gpt-5.4", "temperature": None}, "gpt-5.4", {}),
+        ({"model": "5.6"}, "gpt-5.6-sol", {}),
+        ({"model": "gpt-4o"}, "gpt-4o", {"temperature": 1}),
     ],
 )
 def test_generation_helpers_share_implicit_defaults_and_explicit_omission(
@@ -48,7 +53,7 @@ def test_generation_helpers_share_implicit_defaults_and_explicit_omission(
     "model, canonical, temperature, controls",
     [
         ("gpt-4o", "gpt-4o", 0.3, {"temperature": 0.3}),
-        ("sol", "gpt-6.1-sol", 1, {}),
+        ("sol", "gpt-6.1-sol", None, {}),
     ],
 )
 def test_chatgpt_request_non_stream_uses_v2_client_call(
@@ -116,6 +121,8 @@ def test_nonstream_tool_call_preserves_wrapper_text_and_payload(monkeypatch, cap
         "gpt-5-pro-2025-10-06",
         "gpt-5.2-pro-2025-12-11",
         "gpt-5.4-pro-2026-03-05",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
         "o3-pro-2025-06-10",
         "o1-pro-2025-03-19",
     ],
@@ -254,20 +261,20 @@ def test_request_options_cannot_override_owned_controls(monkeypatch, stream, opt
 @pytest.mark.parametrize(
     "model, effort, temperature, expected",
     [
-        ("gpt-5-nano", None, 1, None),
-        ("gpt-5", "minimal", 1, None),
+        ("gpt-5-nano", None, None, None),
+        ("gpt-5", "minimal", None, None),
         ("gpt-5.1", None, 0.3, 0.3),
         ("gpt-5.2", "none", 0.3, 0.3),
-        ("gpt-5.4", "high", 1, None),
+        ("gpt-5.4", "high", None, None),
         ("gpt-5.4-mini", "none", 0.3, 0.3),
-        ("o3-2025-04-16", "low", 1, None),
+        ("o3-2025-04-16", "low", None, None),
         ("gpt-4o", None, 0.3, 0.3),
-        ("gpt-6-luna", None, 1, None),
-        ("gpt-6.1-sol", None, 1, None),
-        ("gpt-6-astra", None, 1, None),
+        ("gpt-6-luna", None, None, None),
+        ("gpt-6.1-sol", None, None, None),
+        ("gpt-6-astra", None, None, None),
         ("gpt-6-luna", "none", 0.3, 0.3),
-        ("gpt-6.1-sol", "max", 1, None),
-        ("gpt-6-astra", "low", 1, None),
+        ("gpt-6.1-sol", "max", None, None),
+        ("gpt-6-astra", "low", None, None),
     ],
 )
 def test_sampling_and_reasoning_controls(monkeypatch, stream, model, effort, temperature, expected):
@@ -297,8 +304,8 @@ def test_sampling_and_reasoning_controls(monkeypatch, stream, model, effort, tem
     [
         ("gpt-5-nano", None, 0.3, {}),
         ("gpt-5.4", "high", 0.3, {}),
-        ("gpt-5.4", "high", 1, {"top_p": 0.5}),
-        ("o3", None, 1, {"extra_body": {"logprobs": True}}),
+        ("gpt-5.4", "high", None, {"top_p": 0.5}),
+        ("o3", None, None, {"extra_body": {"logprobs": True}}),
         ("gpt-5.4-pro", None, 1, {}),
         ("gpt-6.1-sol", "none", 1, {}),
         ("gpt-6-astra", "minimal", 1, {}),
@@ -318,3 +325,52 @@ def test_unsupported_controls_fail_before_client(monkeypatch, model, effort, tem
             reasoning_effort=effort,
             request_options=options,
         )
+
+
+@pytest.mark.parametrize(
+    "model,stream,effort,temperature,options,expected",
+    [
+        ("5.6", False, None, 1, {"top_p": 0.9}, {"temperature": 1, "top_p": 0.9}),
+        ("6-sol", True, "none", 0.3, {}, {"reasoning_effort": "none", "temperature": 0.3}),
+    ],
+)
+def test_new_models_use_chat_transport(
+    monkeypatch, model, stream, effort, temperature, options, expected
+):
+    chunks = [SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="pong"))])]
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
+    client, completions = _build_client(iter(chunks) if stream else response)
+    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    result = gpt_integration.chatgpt_request(
+        "test-key",
+        [],
+        model,
+        stream=stream,
+        temperature=temperature,
+        reasoning_effort=effort,
+        request_options=options,
+        update_markdown_stream=lambda _: None,
+    )
+    assert result[0] == "pong"
+    assert result[2] == chunks if stream else result[2] is response
+    assert completions.calls == [
+        dict(
+            messages=[],
+            model="gpt-6-sol" if stream else "gpt-5.6-sol",
+            n=1,
+            stream=stream,
+            **expected,
+        )
+    ]
+
+
+def test_library_rejects_explicit_one_before_key_or_client(monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Known incompatible sampling must fail before key/client access")
+
+    monkeypatch.setattr(lib, "get_api_key", forbidden)
+    monkeypatch.setattr(gpt_integration, "_get_client", forbidden)
+    with pytest.raises(click.BadParameter, match="Temperature is not supported"):
+        lib.generate_response("6-sol", [], temperature=1)
+    with pytest.raises(ValueError, match="Temperature is not supported"):
+        gpt_integration.chatgpt_request("test-key", [], "6-sol", temperature=1)

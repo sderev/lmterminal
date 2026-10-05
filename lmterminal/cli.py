@@ -36,7 +36,7 @@ def validate_temperature(ctx, param, value):
     """
     Validates the temperature parameter.
     """
-    if 0 <= value <= 2:
+    if value is None or 0 <= value <= 2:
         return value
 
     raise click.BadParameter("Temperature must be between 0 and 2.")
@@ -136,10 +136,13 @@ def lmt():
 @click.option(
     "--temperature",
     callback=validate_temperature,
-    default=1,
+    default=None,
     type=float,
-    help="The temperature to use for the requests.",
-    show_default=True,
+    help=(
+        "Sampling temperature: defaults to 1 where supported; omitted for restricted "
+        "or unverified models. Explicit values are validated locally when known, "
+        "otherwise by the API."
+    ),
 )
 @click.option(
     "--reasoning-effort",
@@ -281,7 +284,9 @@ def prompt(
         UNSET if ctx.get_parameter_source("model") is ParameterSource.DEFAULT else model,
         emoji,
         prompt_input,
-        temperature,
+        UNSET
+        if ctx.get_parameter_source("temperature") is ParameterSource.DEFAULT
+        else temperature,
         tokens,
         no_stream,
         raw,

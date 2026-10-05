@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Literal
 
 SHORT_CONTEXT_TOKEN_THRESHOLD = 272_000
 REASONING_EFFORTS = (
@@ -13,6 +14,9 @@ REASONING_EFFORTS = (
 
 _CURRENT_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 _LUNA_REASONING_EFFORTS = ("none", *_CURRENT_REASONING_EFFORTS)
+_GPT_5_1_REASONING_EFFORTS = ("none", "low", "medium", "high")
+_GPT_5_2_REASONING_EFFORTS = (*_GPT_5_1_REASONING_EFFORTS, "xhigh")
+SamplingPolicy = Literal["always", "never", "none_only", "unverified"]
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,7 @@ class ModelSpec:
     chat_completions: bool = True
     reasoning_efforts: tuple[str, ...] | None = None
     default_reasoning_effort: str | None = None
+    sampling_policy: SamplingPolicy = "always"
     alias_family: str | None = None
     alias_version: tuple[int, int] | None = None
 
@@ -46,6 +51,7 @@ def _spec(
     chat_completions: bool = True,
     reasoning_efforts: tuple[str, ...] | None = None,
     default_reasoning_effort: str | None = None,
+    sampling_policy: SamplingPolicy = "always",
     alias_family: str | None = None,
     alias_version: tuple[int, int] | None = None,
 ) -> ModelSpec:
@@ -60,6 +66,7 @@ def _spec(
         chat_completions=chat_completions,
         reasoning_efforts=reasoning_efforts,
         default_reasoning_effort=default_reasoning_effort,
+        sampling_policy=sampling_policy,
         alias_family=alias_family,
         alias_version=alias_version,
     )
@@ -170,11 +177,13 @@ MODEL_REGISTRY = {
         short_output=15.00,
     ),
     "o1": _spec(
+        sampling_policy="never",
         short_input=15.00,
         short_cached_input=7.50,
         short_output=60.00,
     ),
     "o1-2024-12-17": _spec(
+        sampling_policy="never",
         short_input=15.00,
         short_cached_input=7.50,
         short_output=60.00,
@@ -244,21 +253,25 @@ MODEL_REGISTRY = {
     ),
     "gpt-4.5-preview": _spec(chat_completions=False, short_input=75),
     "o3": _spec(
+        sampling_policy="never",
         short_input=2.00,
         short_cached_input=0.50,
         short_output=8.00,
     ),
     "o3-2025-04-16": _spec(
+        sampling_policy="never",
         short_input=2.00,
         short_cached_input=0.50,
         short_output=8.00,
     ),
     "o3-mini": _spec(
+        sampling_policy="never",
         short_input=1.10,
         short_cached_input=0.55,
         short_output=4.40,
     ),
     "o3-mini-2025-01-31": _spec(
+        sampling_policy="never",
         short_input=1.10,
         short_cached_input=0.55,
         short_output=4.40,
@@ -269,11 +282,13 @@ MODEL_REGISTRY = {
         short_output=80.00,
     ),
     "o4-mini": _spec(
+        sampling_policy="never",
         short_input=1.10,
         short_cached_input=0.275,
         short_output=4.40,
     ),
     "o4-mini-2025-04-16": _spec(
+        sampling_policy="never",
         short_input=1.10,
         short_cached_input=0.275,
         short_output=4.40,
@@ -295,18 +310,22 @@ MODEL_REGISTRY = {
         short_input=0.15,
     ),
     "gpt-5": _spec(
+        reasoning_efforts=("minimal", "low", "medium", "high"),
+        sampling_policy="never",
         aliases=("5", "gpt5"),
         short_input=1.25,
         short_cached_input=0.125,
         short_output=10.00,
     ),
     "gpt-5-mini": _spec(
+        sampling_policy="never",
         aliases=("5-mini",),
         short_input=0.25,
         short_cached_input=0.025,
         short_output=2.00,
     ),
     "gpt-5-nano": _spec(
+        sampling_policy="never",
         aliases=("5-nano",),
         short_input=0.05,
         short_cached_input=0.005,
@@ -331,6 +350,9 @@ MODEL_REGISTRY = {
         short_output=120.00,
     ),
     "gpt-5.1": _spec(
+        sampling_policy="none_only",
+        reasoning_efforts=_GPT_5_1_REASONING_EFFORTS,
+        default_reasoning_effort="none",
         aliases=("5.1",),
         short_input=1.25,
         short_cached_input=0.125,
@@ -361,6 +383,9 @@ MODEL_REGISTRY = {
         short_output=2.00,
     ),
     "gpt-5.2": _spec(
+        sampling_policy="none_only",
+        reasoning_efforts=_GPT_5_2_REASONING_EFFORTS,
+        default_reasoning_effort="none",
         aliases=("5.2",),
         short_input=1.75,
         short_cached_input=0.175,
@@ -397,6 +422,9 @@ MODEL_REGISTRY = {
         short_output=14.00,
     ),
     "gpt-5.4": _spec(
+        sampling_policy="none_only",
+        reasoning_efforts=_GPT_5_2_REASONING_EFFORTS,
+        default_reasoning_effort="none",
         aliases=("5.4",),
         short_input=2.50,
         short_cached_input=0.25,
@@ -406,12 +434,18 @@ MODEL_REGISTRY = {
         long_output=22.50,
     ),
     "gpt-5.4-mini": _spec(
+        sampling_policy="none_only",
+        reasoning_efforts=_GPT_5_2_REASONING_EFFORTS,
+        default_reasoning_effort="none",
         aliases=("5.4-mini",),
         short_input=0.75,
         short_cached_input=0.075,
         short_output=4.50,
     ),
     "gpt-5.4-nano": _spec(
+        sampling_policy="none_only",
+        reasoning_efforts=_GPT_5_2_REASONING_EFFORTS,
+        default_reasoning_effort="none",
         aliases=("5.4-nano",),
         short_input=0.20,
         short_cached_input=0.02,
@@ -425,6 +459,88 @@ MODEL_REGISTRY = {
         long_input=60.00,
         long_output=270.00,
     ),
+    # Chat/streaming, efforts and Standard USD/1M rates checked 2026-10-05:
+    # https://developers.openai.com/api/docs/models/gpt-5.5
+    # https://developers.openai.com/api/docs/models/gpt-5.6-sol
+    # https://developers.openai.com/api/docs/models/gpt-5.6-terra
+    # https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    # https://developers.openai.com/api/docs/models/gpt-6-sol
+    # https://developers.openai.com/api/docs/guides/prompt-caching
+    # 5.5/5.6 sampling acceptance is unverified, independent of effort support.
+    # 5.5 long input/output use 2x/1.5x full-session rates; cached rate unknown.
+    # 5.6 long rates apply to the full request; cached reads use 0.1x input.
+    # 5.6/6 Sol cache writes use 1.25x input (short/long: Sol 5/10,
+    # Terra 2.5/5, Luna .25/.5, 6 Sol 2.5/5); estimation excludes caching.
+    # 5.6 Sol promotional rates are documented at least through 2026-11-21.
+    "gpt-5.5": _spec(
+        aliases=("5.5",),
+        short_input=5,
+        short_cached_input=0.50,
+        short_output=30,
+        long_input=10,
+        long_output=45,
+        reasoning_efforts=_GPT_5_2_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+        sampling_policy="unverified",
+    ),
+    "gpt-5.6-sol": _spec(
+        # Upstream gpt-5.6 routes to Sol; short spellings are LMT conveniences.
+        # https://developers.openai.com/api/docs/changelog
+        aliases=("5.6-sol", "gpt-5.6", "5.6"),
+        alias_family="sol",
+        alias_version=(5, 6),
+        short_input=4,
+        short_cached_input=0.40,
+        short_output=20,
+        long_input=8,
+        long_cached_input=0.80,
+        long_output=30,
+        reasoning_efforts=_LUNA_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+        sampling_policy="unverified",
+    ),
+    "gpt-5.6-terra": _spec(
+        aliases=("5.6-terra",),
+        short_input=2,
+        short_cached_input=0.20,
+        short_output=12,
+        long_input=4,
+        long_cached_input=0.40,
+        long_output=18,
+        reasoning_efforts=_LUNA_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+        sampling_policy="unverified",
+    ),
+    "gpt-5.6-luna": _spec(
+        aliases=("5.6-luna",),
+        alias_family="luna",
+        alias_version=(5, 6),
+        short_input=0.20,
+        short_cached_input=0.02,
+        short_output=1.20,
+        long_input=0.40,
+        long_cached_input=0.04,
+        long_output=1.80,
+        reasoning_efforts=_LUNA_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+        sampling_policy="unverified",
+    ),
+    # Responses-only; do not invent prices/capabilities for the hidden record.
+    "gpt-5.5-pro": _spec(chat_completions=False),
+    "gpt-6-sol": _spec(
+        aliases=("6-sol",),
+        alias_family="sol",
+        alias_version=(6, 0),
+        short_input=2,
+        short_cached_input=0.20,
+        short_output=10,
+        long_input=4,
+        long_cached_input=0.40,
+        long_output=15,
+        reasoning_efforts=_LUNA_REASONING_EFFORTS,
+        default_reasoning_effort="medium",
+        sampling_policy="none_only",
+    ),
     # Plain Chat Completions, effort lists and Standard USD/1M rates checked 2026-10-04:
     # https://developers.openai.com/api/docs/models/gpt-6-luna
     # https://developers.openai.com/api/docs/models/gpt-6.1-sol
@@ -432,6 +548,7 @@ MODEL_REGISTRY = {
     # https://developers.openai.com/api/docs/pricing
     # No documented tokenizer remapping or dated snapshots for these entries.
     "gpt-6-luna": _spec(
+        sampling_policy="none_only",
         aliases=("6-luna",),
         alias_family="luna",
         alias_version=(6, 0),
@@ -445,6 +562,7 @@ MODEL_REGISTRY = {
         default_reasoning_effort="medium",
     ),
     "gpt-6.1-sol": _spec(
+        sampling_policy="never",
         aliases=("6.1-sol",),
         alias_family="sol",
         alias_version=(6, 1),
@@ -458,6 +576,7 @@ MODEL_REGISTRY = {
         default_reasoning_effort="medium",
     ),
     "gpt-6-astra": _spec(
+        sampling_policy="never",
         aliases=("6-astra",),
         alias_family="astra",
         alias_version=(6, 0),
@@ -473,12 +592,37 @@ MODEL_REGISTRY = {
 }
 
 
+# Exact snapshots listed on each parent's model page, checked 2026-10-05.
+# Parent pages publish these endpoint/streaming, effort and price contracts:
+# https://developers.openai.com/api/docs/models/{parent_id}
+# No separate snapshot prices or unlisted exact shutdown dates are inferred.
+# gpt-5.4-2026-03-05 is omitted from the generated Chat Create model union;
+# its model page lists the snapshot/streaming and its launch confirms Chat:
+# https://developers.openai.com/api/docs/changelog
+# https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
+for _snapshot, _parent in {
+    "gpt-5-2025-08-07": "gpt-5",
+    "gpt-5-mini-2025-08-07": "gpt-5-mini",
+    "gpt-5-nano-2025-08-07": "gpt-5-nano",
+    "gpt-5.1-2025-11-13": "gpt-5.1",
+    "gpt-5.2-2025-12-11": "gpt-5.2",
+    "gpt-5.4-2026-03-05": "gpt-5.4",
+    "gpt-5.4-mini-2026-03-17": "gpt-5.4-mini",
+    "gpt-5.4-nano-2026-03-17": "gpt-5.4-nano",
+    "gpt-5.5-2026-04-23": "gpt-5.5",
+}.items():
+    MODEL_REGISTRY[_snapshot] = replace(
+        MODEL_REGISTRY[_parent], aliases=(), alias_family=None, alias_version=None
+    )
+
+
 # Documented snapshots share request capabilities without expanding the price catalog.
 _REQUEST_MODEL_SNAPSHOT_FAMILIES = {
     "gpt-5-pro-2025-10-06": "gpt-5-pro",
     "gpt-5.2-pro-2025-12-11": "gpt-5.2-pro",
     "gpt-5.4-pro-2026-03-05": "gpt-5.4-pro",
     "o3-pro-2025-06-10": "o3-pro",
+    "gpt-5.5-pro-2026-04-23": "gpt-5.5-pro",
 }
 
 

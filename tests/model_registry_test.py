@@ -70,6 +70,11 @@ def test_family_alias_rejects_duplicate_version(monkeypatch):
     "name",
     [
         "gpt-5.4-pro",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
+        "gpt-5.6-cyber",
+        "gpt-5-search-api",
+        "gpt-5-search-api-2025-10-14",
         "5.4-pro",
         "o3-pro",
         "gpt-5.3-codex",
@@ -103,7 +108,25 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
     result = CliRunner().invoke(cli.lmt, ["models"])
     assert result.exit_code == 0
     assert "gpt-5.4" in result.output
-    for model in ("gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"):
+    for model in (
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-5.5",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5-2025-08-07",
+        "gpt-5-mini-2025-08-07",
+        "gpt-5-nano-2025-08-07",
+        "gpt-5.1-2025-11-13",
+        "gpt-5.2-2025-12-11",
+        "gpt-5.4-2026-03-05",
+        "gpt-5.4-mini-2026-03-17",
+        "gpt-5.4-nano-2026-03-17",
+        "gpt-5.5-2026-04-23",
+    ):
         assert model in result.output
     for aliases in ("6-luna, luna", "6.1-sol, sol", "6-astra, astra"):
         assert f"  Aliases: {aliases}\n" in result.output
@@ -163,3 +186,44 @@ def test_current_standard_prices_and_boundary(model, short, long):
         model_registry.PriceBand(*long),
         "long",
     )
+
+
+@pytest.mark.parametrize(
+    "snapshot,parent",
+    [
+        ("gpt-5-2025-08-07", "gpt-5"),
+        ("gpt-5-mini-2025-08-07", "gpt-5-mini"),
+        ("gpt-5-nano-2025-08-07", "gpt-5-nano"),
+        ("gpt-5.1-2025-11-13", "gpt-5.1"),
+        ("gpt-5.2-2025-12-11", "gpt-5.2"),
+        ("gpt-5.4-2026-03-05", "gpt-5.4"),
+        ("gpt-5.4-mini-2026-03-17", "gpt-5.4-mini"),
+        ("gpt-5.4-nano-2026-03-17", "gpt-5.4-nano"),
+        ("gpt-5.5-2026-04-23", "gpt-5.5"),
+    ],
+)
+def test_documented_snapshots_use_parent_contract_without_aliases(snapshot, parent):
+    spec = model_registry.get_model_spec(snapshot)
+    assert spec == replace(
+        model_registry.get_model_spec(parent), aliases=(), alias_family=None, alias_version=None
+    )
+    assert model_registry.resolve_model_name(snapshot) == snapshot
+    assert model_registry.get_valid_models()[snapshot] is None
+
+
+@pytest.mark.parametrize(
+    "model,short,long",
+    [
+        ("gpt-5.5", (5, 0.50, 30), (10, None, 45)),
+        ("gpt-5.6-sol", (4, 0.40, 20), (8, 0.80, 30)),
+        ("gpt-5.6-terra", (2, 0.20, 12), (4, 0.40, 18)),
+        ("gpt-5.6-luna", (0.20, 0.02, 1.20), (0.40, 0.04, 1.80)),
+        ("gpt-6-sol", (2, 0.20, 10), (4, 0.40, 15)),
+    ],
+)
+def test_new_source_backed_prices_at_long_context_boundary(model, short, long):
+    assert model_registry.get_price_band(model, 272000) == (
+        model_registry.PriceBand(*short),
+        "short",
+    )
+    assert model_registry.get_price_band(model, 272001) == (model_registry.PriceBand(*long), "long")
