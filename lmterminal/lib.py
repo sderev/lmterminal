@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
@@ -409,28 +410,50 @@ def get_api_key() -> str:
     Return the OpenAI API key.
     """
     key_file_path = get_api_key_path()
+    return _read_keys(key_file_path).get("openai", "").strip()
+
+
+def _read_keys(key_file_path: Path) -> dict[str, str]:
+    """Read the provider-key mapping without exposing invalid contents in errors."""
     with open(key_file_path, "r", encoding="UTF-8") as key_file:
-        return key_file.read().strip()
+        try:
+            keys = json.load(key_file)
+        except (json.JSONDecodeError, UnicodeError):
+            raise click.ClickException("keys.json must contain valid UTF-8 JSON.") from None
+    if not isinstance(keys, dict) or any(not isinstance(value, str) for value in keys.values()):
+        raise click.ClickException("keys.json must contain an object with string key values.")
+    return keys
 
 
 def get_api_key_path() -> Path:
     """
     Return the path to the keys file.
     """
-    key_file_path = Path.home() / ".config" / "lmt" / "key.env"
+    key_file_path = Path.home() / ".config" / "lmt" / "keys.json"
     if not key_file_path.exists():
         key_file_path.parent.mkdir(parents=True, exist_ok=True)
-        key_file_path.touch()
+        descriptor = os.open(key_file_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="UTF-8") as key_file:
+            key_file.write("{}\n")
     return key_file_path
 
 
 def write_key(key: str) -> None:
     """
-    Write the OpenAI API key to the key file.
+    Write the OpenAI API key, preserving other provider entries.
     """
+    if not isinstance(key, str):
+        raise click.ClickException("API key must be a string.")
     key_file_path = get_api_key_path()
-    with open(key_file_path, "w", encoding="UTF-8") as key_file:
-        key_file.write(key)
+    keys = _read_keys(key_file_path)
+    keys["openai"] = key
+    descriptor = os.open(key_file_path, os.O_WRONLY | os.O_CREAT, 0o600)
+    with os.fdopen(descriptor, "w", encoding="UTF-8") as key_file:
+        # Restrict the opened file before replacing any stored key.
+        os.fchmod(key_file.fileno(), 0o600)
+        key_file.truncate(0)
+        json.dump(keys, key_file, indent=4)
+        key_file.write("\n")
 
 
 def set_key() -> None:
