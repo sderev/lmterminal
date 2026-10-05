@@ -18,6 +18,24 @@ uv run lmt --help
 
 The console script is `lmt`. Use `uv run lmt ...` from a checkout.
 
+API keys are stored in `~/.config/lmt/keys.json` as a provider-to-key mapping:
+
+```json
+{"openai": "your-api-key"}
+```
+
+`lmt key set` adds your OpenAI key; `lmt key edit` changes it. Both prompts hide
+your input. Other provider entries are preserved when changing OpenAI, but only
+OpenAI requests are supported. The file must contain a JSON object with string
+values; a missing or empty OpenAI value means no OpenAI key is set.
+
+New key files start as `{}` with owner-only permissions (`0600`); setting or
+changing a key applies `0600` before writing. Reading an existing key or leaving
+it unchanged does not change its permissions.
+
+This storage change requires reconfiguration: run `lmt key set` again after
+upgrading. Legacy `key.env` and `API_keys.json` files are neither read nor migrated.
+
 ## Usage
 
 ```bash
