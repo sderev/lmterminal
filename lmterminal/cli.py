@@ -1,6 +1,5 @@
-import filecmp
 import json
-import shutil
+import os
 import sys
 
 import click
@@ -8,10 +7,34 @@ from click.core import ParameterSource
 from click_default_group import DefaultGroup
 
 from .diagnostics import RequestDiagnostics
-from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
+from .lib import (
+    DEFAULT_MODEL,
+    RequestResolutionError,
+    edit_key,
+    prepare_and_generate_response,
+    resolve_request,
+    set_key,
+)
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
 from .request_options import UNSET, validate_request_options
-from .templates import TEMPLATES_DIR, get_default_template_file_path
+from .templates import (
+    DEFAULT_TEMPLATE_CONTENT,
+    TemplateError,
+    list_templates,
+    load_template,
+    template_path,
+)
+
+
+def complete_template(ctx, param, incomplete):
+    return [name for name in list_templates() if name.startswith(incomplete)]
+
+
+def _template_path(name):
+    try:
+        return template_path(name)
+    except TemplateError as error:
+        raise click.UsageError(str(error)) from error
 
 
 # The first two parameters are required by Click for a callback.
@@ -125,13 +148,15 @@ def lmt():
 @click.option(
     "--template",
     "-t",
-    help="The template to use for the requests.",
+    help="Named YAML template; cannot be combined with --system.",
+    shell_complete=complete_template,
 )
 @click.option(
     "--system",
     "-s",
     help="The system to use for the requests.",
 )
+@click.option("--text", help="Literal content; positional arguments supply task instructions.")
 @click.option("--emoji", is_flag=True, help="Add emotions and emojis.")
 @click.option(
     "--temperature",
@@ -205,6 +230,7 @@ def prompt(
     template,
     system,
     emoji,
+    text,
     temperature,
     reasoning_effort,
     request_options,
@@ -224,46 +250,52 @@ def prompt(
     diagnostics = RequestDiagnostics(verbose) if verbose else None
     if diagnostics:
         diagnostics.mark("prompt handling started", level=2)
-    prompt_input = " ".join(prompt_input).strip()
+    prompt_input = " ".join(prompt_input)
 
-    # Allow for the appending of an additional prompt to the piped stdin content
-    if not sys.stdin.isatty() and prompt_input:
-        prompt_input = sys.stdin.read().strip() + "\n___\n" + prompt_input
+    def supplied(name, value):
+        return UNSET if ctx.get_parameter_source(name) is ParameterSource.DEFAULT else value
 
-    if not prompt_input:
-        # Read piped or redirected stdin content.
-        if not sys.stdin.isatty():
-            prompt_input = sys.stdin.read().strip()
+    settings = {
+        "system": supplied("system", system),
+        "model": supplied("model", model),
+        "temperature": supplied("temperature", temperature),
+        "reasoning_effort": supplied("reasoning_effort", reasoning_effort),
+        "request_options": request_options,
+    }
+    if diagnostics:
+        diagnostics.mark("request preparation started", level=2)
+    try:
+        # Conflict and template/control validation must precede any stdin/key access.
+        if template is not None and settings["system"] is not UNSET:
+            resolve_request(template=template, **settings)
+        stored = load_template(template) if template is not None else None
+        request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
+    except (TemplateError, RequestResolutionError) as error:
+        raise click.UsageError(str(error)) from error
 
-        # Allow for structured prompts in the terminal.
-        if sys.stdin.isatty():
-            input_prompt_instructions = (
-                "Write or paste your message below. Use <Enter> for new lines."
-                "\nTo send your message, press Ctrl+D."
-            )
-
-            if sys.stdout.isatty():
-                click.secho(input_prompt_instructions, fg="yellow")
-                click.echo("---")
-
-            # Display instructions in the terminal only, not in redirected or piped output.
-            # This ensures the user sees the instructions without affecting the file output.
-            if not sys.stdout.isatty():
-                with open("/dev/tty", "w", encoding="UTF-8") as output_stream:
-                    click.secho(input_prompt_instructions, fg="yellow", file=output_stream)
-                    click.echo("---", file=output_stream)
-
-            # Read user input from stdin
-            prompt_input = sys.stdin.read().strip()
-
-    if system and template:
-        raise click.BadOptionUsage(
-            option_name="template",
-            message=click.style(
-                "You cannot use both `--template` and `--system` at the same time.",
-                fg="red",
-            ),
+    content = text or ""
+    if not sys.stdin.isatty():
+        piped = sys.stdin.read()
+        if piped and text is not None:
+            raise click.UsageError("Cannot combine `--text` with nonempty stdin.")
+        content = piped if text is None else text
+    elif not request.messages[-1]["content"]:
+        instructions = (
+            "Write or paste your message below. Use <Enter> for new lines."
+            "\nTo send your message, press Ctrl+D."
         )
+        if sys.stdout.isatty():
+            click.secho(instructions, fg="yellow")
+            click.echo("---")
+        else:
+            with open("/dev/tty", "w", encoding="UTF-8") as output_stream:
+                click.secho(instructions, fg="yellow", file=output_stream)
+                click.echo("---", file=output_stream)
+        content = sys.stdin.read()
+    try:
+        request = resolve_request(template=stored, prompt=prompt_input, text=content, **settings)
+    except (TemplateError, RequestResolutionError) as error:
+        raise click.UsageError(str(error)) from error
 
     # If *not* in an interactive shell or redirecting to a file,
     # enable the `--raw` option, viz. disabling `Rich` formatting
@@ -279,24 +311,12 @@ def prompt(
         click.echo()
 
     prepare_and_generate_response(
-        system,
-        template,
-        UNSET if ctx.get_parameter_source("model") is ParameterSource.DEFAULT else model,
-        emoji,
-        prompt_input,
-        UNSET
-        if ctx.get_parameter_source("temperature") is ParameterSource.DEFAULT
-        else temperature,
-        tokens,
-        no_stream,
-        raw,
-        debug,
-        reasoning_effort=(
-            UNSET
-            if ctx.get_parameter_source("reasoning_effort") is ParameterSource.DEFAULT
-            else reasoning_effort
-        ),
-        request_options=request_options,
+        request,
+        emoji=emoji,
+        tokens=tokens,
+        no_stream=no_stream,
+        raw=raw,
+        debug=debug,
         diagnostics=diagnostics,
     )
 
@@ -331,7 +351,7 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates_names_list = sorted([template.stem for template in TEMPLATES_DIR.iterdir()])
+    templates_names_list = list_templates()
     if templates_names_list:
         click.echo("\n".join(templates_names_list))
 
@@ -342,7 +362,7 @@ def view_template(template):
     """
     View a template.
     """
-    template = TEMPLATES_DIR / f"{template}.yaml"
+    template = _template_path(template)
     if template.exists():
         with open(template, "r", encoding="UTF-8") as template_file:
             click.echo(template_file.read())
@@ -354,7 +374,7 @@ def edit(template):
     """
     Edit a template.
     """
-    template_file = TEMPLATES_DIR / f"{template}.yaml"
+    template_file = _template_path(template)
     if template_file.exists():
         original_file_content = template_file.read_text()
         click.edit(filename=str(template_file))
@@ -383,24 +403,15 @@ def add_template(template):
     """
     if not template:
         template = click.prompt("Template name")
-        if template in [template.name for template in TEMPLATES_DIR.iterdir()]:
-            click.secho("Error: ", fg="red", nl=False)
-            click.echo("Template ", nl=False)
-            click.secho(template, fg="red", nl=False)
-            click.echo(" already exists.")
-            click.echo(
-                f"Use `{click.style(f'lmt templates edit {template}', fg='blue')}` to edit it."
-            )
-            return
-
-    template_file = TEMPLATES_DIR / f"{template}.yaml"
-    default_template_file = get_default_template_file_path()
-
-    shutil.copyfile(default_template_file, template_file)
-
+    template_file = _template_path(template)
+    template_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with template_file.open("x", encoding="UTF-8") as file:
+            file.write(DEFAULT_TEMPLATE_CONTENT)
+    except FileExistsError as error:
+        raise click.UsageError(f"Template `{template}` already exists.") from error
     click.edit(filename=str(template_file))
-
-    if filecmp.cmp(default_template_file, template_file, shallow=False):
+    if template_file.read_text(encoding="UTF-8") == DEFAULT_TEMPLATE_CONTENT:
         click.secho("Aborting: ", fg="red", nl=False)
         click.echo("The template has not been created because no changes were made.")
         template_file.unlink()
@@ -417,7 +428,7 @@ def delete_template(template):
     """
     Delete the template.
     """
-    template_file = TEMPLATES_DIR / f"{template}.yaml"
+    template_file = _template_path(template)
     if template_file.exists():
         click.confirm(
             f"Are you sure you want to delete the template '{template}'?",
@@ -441,11 +452,16 @@ def rename_template(template):
     """
     Rename the template.
     """
-    template_file = TEMPLATES_DIR / template
+    template_file = _template_path(template)
     if template_file.exists():
         new_template_name = click.prompt("New template name", default=template)
-        new_template_file = TEMPLATES_DIR / new_template_name
-        template_file.rename(new_template_file)
+        new_template_file = _template_path(new_template_name)
+        try:
+            # A hard link refuses an occupied destination, unlike rename on Linux.
+            os.link(template_file, new_template_file, follow_symlinks=False)
+        except FileExistsError as error:
+            raise click.UsageError(f"Template `{new_template_name}` already exists.") from error
+        template_file.unlink()
         click.echo(
             f"{click.style('Success!', fg='green')} Template"
             f" '{click.style(template, fg='blue')}' renamed to"

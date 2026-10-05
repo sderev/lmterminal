@@ -1,103 +1,114 @@
-import sys
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from math import isfinite
 from pathlib import Path
 
-import click
 import yaml
 
-
-def handle_template(template: str, system: str, prompt_input: str, model) -> tuple:
-    """
-    Handles the template used for the prompt.
-    """
-    template_content = get_template_content(template)
-    system = update_from_template(template_content, "system", system)
-    prompt_input = update_from_template(template_content, "user", prompt_input)
-    model_template = template_content.get("model", model) or model
-
-    return system, prompt_input, model_template
+from .request_options import validate_request_options
 
 
-def update_from_template(template_content, key, value):
-    """
-    Updates the value of a key from a template.
-    """
-    existing_value = template_content.setdefault(key, "")
-    if existing_value is None:
-        template_content[key] = existing_value = ""
-
-    return existing_value.rstrip() + (value or "")
+class TemplateError(ValueError):
+    """A template name, file or field cannot be used."""
 
 
-def get_template_content(template):
-    """
-    Reads the template YAML file and returns a dictionary with its content.
-    """
-    template_file = TEMPLATES_DIR / f"{template}.yaml"
+@dataclass(frozen=True)
+class Template:
+    """Task instructions, content and optional request settings; null settings are omitted."""
 
+    system: str = ""
+    prompt: str = ""
+    text: str = ""
+    model: str | None = None
+    temperature: float | None = None
+    reasoning_effort: str | None = None
+    request_options: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        for name in ("system", "prompt", "text"):
+            value = getattr(self, name)
+            if value is None:
+                object.__setattr__(self, name, "")
+            elif not isinstance(value, str):
+                raise TemplateError(f"Field `{name}` must be text or null.")
+        for name in ("model", "reasoning_effort"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value):
+                raise TemplateError(f"Field `{name}` must be nonempty text or null.")
+        value = self.temperature
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not isfinite(value)
+            or not 0 <= value <= 2
+        ):
+            raise TemplateError("Field `temperature` must be a number between 0 and 2 or null.")
+        if not isinstance(self.request_options, Mapping):
+            raise TemplateError("Field `request_options` must be a mapping.")
+        try:
+            validate_request_options(self.request_options)
+        except (TypeError, ValueError) as error:
+            raise TemplateError(f"Field `request_options`: {error}") from error
+        object.__setattr__(self, "request_options", dict(self.request_options))
+
+
+TEMPLATES_DIR = Path.home() / ".config" / "lmt" / "templates"
+
+
+def template_path(name: str, directory: Path | None = None) -> Path:
+    """Resolve an extensionless basename without creating directories."""
+    if (
+        not isinstance(name, str)
+        or not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\\" in name
+        or Path(name).suffix
+    ):
+        raise TemplateError("Template names must be extensionless basenames.")
+    return (TEMPLATES_DIR if directory is None else Path(directory)) / f"{name}.yaml"
+
+
+def list_templates(directory: Path | None = None) -> list[str]:
+    """List only YAML files; a missing directory is an empty collection."""
+    directory = TEMPLATES_DIR if directory is None else Path(directory)
+    if not directory.exists():
+        return []
+    return sorted(path.stem for path in directory.glob("*.yaml") if path.is_file())
+
+
+def load_template(name: str, directory: Path | None = None) -> Template:
+    """Load and validate YAML without printing errors or disclosing file contents."""
+    path = template_path(name, directory)
     try:
-        with open(template_file, "rt", encoding="UTF-8") as file:
-            template_content = yaml.safe_load(file)
-    except FileNotFoundError:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo("The template '", nl=False)
-        click.secho(template, fg="red", nl=False)
-        click.echo("' does not exist.")
-        sys.exit(1)
-    else:
-        return template_content
+        content = yaml.safe_load(path.read_text(encoding="UTF-8"))
+    except (OSError, UnicodeError) as error:
+        raise TemplateError(f"Cannot read template `{name}`.") from error
+    except yaml.YAMLError:
+        raise TemplateError(f"Template `{name}` contains invalid YAML.") from None
+    if content is None:
+        content = {}
+    if not isinstance(content, Mapping):
+        raise TemplateError(f"Template `{name}` must contain a mapping.")
+    if "user" in content:
+        raise TemplateError(
+            f"Template `{name}`: replace `user` with `prompt` for instructions or `text` for content."
+        )
+    if any(key not in Template.__dataclass_fields__ for key in content):
+        raise TemplateError(f"Template `{name}` contains an unsupported field.")
+    try:
+        return Template(**content)
+    except TemplateError as error:
+        raise TemplateError(f"Template `{name}`: {error}") from error
 
 
-def get_templates_dir() -> Path:
-    """
-    Returns the path to the templates directory.
-    """
-    templates_dir = Path.home() / ".config" / "lmt" / "templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-    return templates_dir
-
-
-def get_default_template_file_path() -> Path:
-    """
-    Returns the path to the default template file.
-    """
-    default_dir = Path.home() / ".config" / "lmt" / "default"
-    default_dir.mkdir(parents=True, exist_ok=True)
-
-    default_template_file = default_dir / "template.yaml"
-    if not default_template_file.exists():
-        click.echo("The default template does not exist. Creating it...")
-        with open(default_template_file, "w", encoding="UTF-8") as file:
-            file.write(DEFAULT_TEMPLATE_CONTENT)
-
-    return default_template_file
-
-
-TEMPLATES_DIR = get_templates_dir()
-
-DEFAULT_TEMPLATE_CONTENT = """# Documentation: https://github.com/sderev/lmt
-
-# You may leave either of the fields empty. 
-
-
-# Here, you can instruct how you want ChatGPT to behave.
-# For example, you might say:
-# "You are an AI modeled after Emil Cioran, the Romanian philosopher and essayist.
-# You have a deep understanding of existentialism and philosophical pessimism."
-# The more precise and detailed, the better!
+DEFAULT_TEMPLATE_CONTENT = """# Task instructions and content are separate; no variable substitution.
 system:
-
-
-
-
-# Here, you should write what you want to say to ChatGPT.
-# For example: "As a language model yourself, how do you view your own existence?"
-user:
-
-
-
-
-# Set a canonical model name from `lmt models`.
-# This example uses "gpt-3.5-turbo"; the CLI default is "gpt-6-luna" with effort "none".
-# Input and output tokens incur model-dependent charges.
-model: "gpt-3.5-turbo"
+prompt:
+text:
+# Null settings inherit the package defaults.
+model:
+temperature:
+reasoning_effort:
+request_options: {}
 """

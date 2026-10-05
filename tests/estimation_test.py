@@ -233,26 +233,31 @@ def test_implicit_luna_estimate_has_no_tokenizer_fallback(monkeypatch):
     assert "Request input tokens and cost: unavailable" in result.output
 
 
-@pytest.mark.parametrize("template_model", ["gpt-5.4-pro", "unknown", None])
+@pytest.mark.parametrize("template_model", ["gpt-5.4-pro", "unknown"])
 @pytest.mark.parametrize("tokens", [False, True])
-def test_invalid_template_model_before_key(monkeypatch, template_model, tokens):
-    monkeypatch.setattr(lib, "handle_template", lambda *args: ("", "hi", template_model))
+def test_invalid_template_model_before_key(monkeypatch, tmp_path, template_model, tokens):
+    from lmterminal import templates
+
+    (tmp_path / "fixture.yaml").write_text(f"model: {template_model}\n", encoding="UTF-8")
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("key read"))
     result = CliRunner().invoke(
         cli.lmt, ["-t", "fixture"] + (["--tokens"] if tokens else []), input="hi"
     )
     assert result.exit_code == 2
-    assert "Invalid template model" in result.output
+    assert "model" in result.output
 
 
 @pytest.mark.parametrize("model,expected_model", [(None, "gpt-4o"), ("5.4", "gpt-5.4")])
 def test_estimate_and_transport_receive_same_prepared_values(
-    monkeypatch, fake_encoder, model, expected_model
+    monkeypatch, tmp_path, fake_encoder, model, expected_model
 ):
-    monkeypatch.setattr(
-        lib,
-        "handle_template",
-        lambda name, system, text, model: ("Template system.", "Prefix:" + text, "4o"),
+    from lmterminal import templates
+
+    (tmp_path / "fixture.yaml").write_text(
+        'system: "Template system."\nprompt: "Prefix:"\nmodel: "4o"\n', encoding="UTF-8"
     )
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
     requests = []
     estimate = estimation.estimate_request
 
@@ -281,7 +286,7 @@ def test_estimate_and_transport_receive_same_prepared_values(
     prepared = requests[0]
     assert prepared.model == expected_model
     assert prepared.messages[0]["content"] == lib.add_emoji("Template system.")
-    assert prepared.messages[1]["content"] == "Prefix:stdin text\n___\nSummarize"
+    assert prepared.messages[1]["content"] == "stdin text\n___\nPrefix:\n\nSummarize"
     assert prepared.controls == {"temperature": 1, "max_completion_tokens": 100}
     assert calls == [
         dict(

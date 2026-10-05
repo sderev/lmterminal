@@ -344,20 +344,15 @@ def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
         return "hello\n", 0.1, payload
 
     monkeypatch.setattr(lib, "_generate_prepared_response", fake_generate)
-    result = lib.prepare_and_generate_response(
+    request = lib.resolve_request(
         system="Reply concisely.",
-        template=None,
         model="gpt-5.4",
-        emoji=False,
-        prompt_input="Say hello.",
+        prompt="Say hello.",
         temperature=0.3,
-        tokens=False,
-        no_stream=True,
-        raw=True,
-        debug=False,
         reasoning_effort="none",
         request_options={"verbosity": "low", "max_completion_tokens": 100},
     )
+    result = lib.prepare_and_generate_response(request, no_stream=True, raw=True)
 
     assert result == ("hello\n", 0.1, payload)
     assert calls == [
