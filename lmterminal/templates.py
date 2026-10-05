@@ -5,7 +5,7 @@ import click
 import yaml
 
 
-def handle_template(template: str, system: str, prompt_input: str, model: str) -> tuple:
+def handle_template(template: str, system: str, prompt_input: str, model) -> tuple:
     """
     Handles the template used for the prompt.
     """
@@ -97,7 +97,7 @@ user:
 
 
 # Set a canonical model name from `lmt models`.
-# This example uses "gpt-3.5-turbo"; the CLI default is "gpt-5-nano".
+# This example uses "gpt-3.5-turbo"; the CLI default is "gpt-6-luna" with effort "none".
 # Input and output tokens incur model-dependent charges.
 model: "gpt-3.5-turbo"
 """

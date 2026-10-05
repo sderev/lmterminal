@@ -21,6 +21,29 @@ def _build_client(response):
     return client, completions
 
 
+@pytest.mark.parametrize("helper", [gpt_integration.chatgpt_request, lib.generate_response])
+@pytest.mark.parametrize(
+    "options, model, controls",
+    [
+        ({}, "gpt-6-luna", {"reasoning_effort": "none", "temperature": 1}),
+        ({"model": "luna"}, "gpt-6-luna", {}),
+        ({"model": "sol"}, "gpt-6.1-sol", {}),
+        ({"reasoning_effort": "high"}, "gpt-6-luna", {"reasoning_effort": "high"}),
+        ({"reasoning_effort": None}, "gpt-6-luna", {}),
+    ],
+)
+def test_generation_helpers_share_implicit_defaults_and_explicit_omission(
+    monkeypatch, helper, options, model, controls
+):
+    response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
+    client, completions = _build_client(response)
+    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    kwargs = {"api_key": "test-key"} if helper is gpt_integration.chatgpt_request else {}
+    helper(prompt=[], stream=False, **kwargs, **options)
+    assert completions.calls == [dict(messages=[], model=model, n=1, stream=False, **controls)]
+
+
 @pytest.mark.parametrize(
     "model, canonical, temperature, controls",
     [

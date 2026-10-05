@@ -3,7 +3,8 @@ import time
 
 import openai
 
-from .request_options import prepare_request
+from .request_options import DEFAULT_MODEL as DEFAULT_MODEL  # noqa: PLC0414 -- public constant
+from .request_options import UNSET, prepare_request
 
 _client = None
 
@@ -19,8 +20,6 @@ def _get_client(api_key: str) -> openai.OpenAI:
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
-
-DEFAULT_MODEL = "gpt-5-nano"
 
 
 def format_prompt(system_content, user_content):
@@ -40,7 +39,7 @@ def format_prompt(system_content, user_content):
 def chatgpt_request(
     api_key,
     prompt,
-    model=DEFAULT_MODEL,
+    model=UNSET,
     # max_tokens=3900,
     n=1,
     temperature=1,
@@ -48,12 +47,14 @@ def chatgpt_request(
     stream=False,
     update_markdown_stream=None,
     *,
-    reasoning_effort=None,
+    reasoning_effort=UNSET,
     request_options=None,
     diagnostics=None,
 ):
     """
     Sends a request to the OpenAI Chat API.
+
+    Omitted model/effort use Luna/none; explicit None omits effort.
 
     Returns:
         tuple[str, float, object]:

@@ -28,6 +28,10 @@ lmt --model gpt-5.4 "Explain this function"
 lmt --tokens --model gpt-5.4 "Estimate this prompt"
 ```
 
+With no model or reasoning choice, LMT uses `gpt-6-luna` with reasoning effort
+`none`. An explicit CLI or template model keeps that model's provider reasoning
+default unless you pass `--reasoning-effort`, including when you select Luna.
+
 `lmt models` lists the registered Chat Completions models and aliases. Other
 endpoints, including Responses-only Pro and Codex models, and retired models are
 not supported. Library requests also reject known Responses-only Pro snapshots.
@@ -135,20 +139,23 @@ lmt -m gpt-6.1-sol --reasoning-effort max "Explain this function"
 lmt -o max_completion_tokens=500 -o stream_options.include_usage=true "Say hello"
 ```
 
-`--reasoning-effort` leaves the model default unchanged when omitted. Supported
+`--reasoning-effort` overrides the effort for the selected model. Supported
 values depend on the model. The default temperature of 1 is omitted for models
 that do not support sampling, including GPT-5/nano/mini and o-series models;
 other temperature values are rejected for these models. GPT-5.1, GPT-5.2 and
 GPT-5.4 variants allow sampling with reasoning effort `none` (their default).
 
 GPT-6 Luna supports `none`, `low`, `medium`, `high`, `xhigh`
-and `max`; omitting effort preserves its `medium` default. GPT-6.1 Sol and
+and `max`; an explicitly selected Luna model with omitted effort preserves its
+provider `medium` default. GPT-6.1 Sol and
 GPT-6 Astra support `low`, `medium`, `high`, `xhigh` and `max`; neither accepts
 `none` or `minimal`. GPT-6.1 Sol defaults to `medium`. These model/effort
 combinations are checked locally for both CLI and library requests. For these
-three models, temperature, `top_p`, `logprobs` and `top_logprobs` require explicit
-`none` on GPT-6 Luna. The default temperature of 1 is otherwise omitted;
-explicit incompatible controls are rejected.
+three models, temperature, `top_p`, `logprobs` and `top_logprobs` require an
+effective reasoning effort of `none` on GPT-6 Luna. Implicit requests use `none`;
+if you explicitly select Luna and omit effort, set `--reasoning-effort none` to
+use these controls. The default temperature of 1 is otherwise omitted; explicit
+incompatible controls are rejected.
 
 Repeat `-o/--option key=value` for additional Chat Completions parameters. Values
 use JSON when valid, otherwise text; dotted keys build nested objects. Owned
@@ -170,6 +177,11 @@ Templates are YAML files in `~/.config/lmt/templates/` with `system`, `user` and
 `--system` cannot be used together.
 
 ## Library input estimates
+
+`lib.generate_response` and `gpt_integration.chatgpt_request` use the same
+Luna/`none` default when both model and effort are omitted. Passing a model
+preserves its provider effort default; passing `reasoning_effort=None` explicitly
+omits that request field. Other explicit controls remain subject to model validation.
 
 Use `lmterminal.request_options.prepare_request(model, messages, ...)` followed by
 `lmterminal.estimation.estimate_request(request)`. The `InputEstimate` result

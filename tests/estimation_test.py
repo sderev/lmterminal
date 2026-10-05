@@ -64,7 +64,7 @@ def test_real_text_oracles_and_literal_cli(real_encoder):
         prepare_request("5-nano", [{"role": "user", "content": "hello", "name": "Bob"}])
     )
     assert named.input_tokens == 10  # 3 framing + role/content/name + 1 name + 3 priming
-    output = CliRunner().invoke(cli.lmt, ["--tokens"], input="<|endoftext|>")
+    output = CliRunner().invoke(cli.lmt, ["--tokens", "-m", "5-nano"], input="<|endoftext|>")
     assert output.exit_code == 0, output.output
     assert "Estimated input tokens: ~18" in output.output
     assert "Standard uncached input" in output.output
@@ -129,7 +129,7 @@ def test_cli_estimate_colors_and_plain_output(monkeypatch, scope):
     ],
 )
 def test_cli_partial_options(fake_encoder, option):
-    result = CliRunner().invoke(cli.lmt, ["--tokens", "-o", option], input="hello")
+    result = CliRunner().invoke(cli.lmt, ["--tokens", "-m", "5-nano", "-o", option], input="hello")
     assert result.exit_code == 0, result.output
     assert "Message-only token estimate:" in result.output
     assert "Request input tokens and cost: unavailable" in result.output
@@ -171,7 +171,7 @@ def test_unknown_encoder_and_known_encoder_unknown_price(fake_encoder):
 
 @pytest.mark.parametrize("option", ["service_tier=flex", "extra_body.service_tier=priority"])
 def test_service_tier_unpriced(fake_encoder, option):
-    result = CliRunner().invoke(cli.lmt, ["--tokens", "-o", option], input="hello")
+    result = CliRunner().invoke(cli.lmt, ["--tokens", "-m", "5-nano", "-o", option], input="hello")
     assert result.exit_code == 0
     assert "Estimated input tokens:" in result.output
     assert "Input cost: unavailable" in result.output
@@ -188,7 +188,7 @@ def test_missing_assets_are_actionable(monkeypatch, error):
         raise error("Public asset unavailable")
 
     monkeypatch.setattr(tiktoken.load, "read_file", denied)
-    result = CliRunner().invoke(cli.lmt, ["--tokens"], input="hello")
+    result = CliRunner().invoke(cli.lmt, ["--tokens", "-m", "5-nano"], input="hello")
     assert result.exit_code == 1
     assert "Tokenizer data for o200k_base is unavailable" in result.output
     assert "TIKTOKEN_CACHE_DIR" in result.output
@@ -205,9 +205,27 @@ def test_missing_assets_are_actionable(monkeypatch, error):
     ],
 )
 def test_validation_precedes_key_and_estimation(tokens, args, error):
-    result = CliRunner().invoke(cli.lmt, args + (["--tokens"] if tokens else []), input="hi")
+    result = CliRunner().invoke(
+        cli.lmt, ["-m", "5-nano", *args] + (["--tokens"] if tokens else []), input="hi"
+    )
     assert result.exit_code == 2
     assert error in result.output
+
+
+def test_implicit_luna_estimate_has_no_tokenizer_fallback(monkeypatch):
+    names = []
+
+    def unknown_tokenizer(name):
+        names.append(name)
+        raise KeyError(name)
+
+    monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", unknown_tokenizer)
+    result = CliRunner().invoke(cli.lmt, ["--tokens"], input="hello")
+    assert result.exit_code == 1
+    assert names == ["gpt-6-luna"]
+    assert "Model: gpt-6-luna" in result.output
+    assert "No known tokenizer for this model." in result.output
+    assert "Request input tokens and cost: unavailable" in result.output
 
 
 @pytest.mark.parametrize("template_model", ["gpt-5.4-pro", "unknown", None])
