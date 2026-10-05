@@ -100,11 +100,11 @@ def test_validate_temperature_invalid(value):
 @pytest.mark.parametrize(
     "args, expected_prompt, stream",
     [
-        ([], "piped input", True),
-        (["--rich"], "piped input", True),
-        (["prompt", "--raw", "Summarize"], "piped input\n___\nSummarize", True),
-        (["--no-stream"], "piped input", False),
-        (["prompt", "--no-stream", "Summarize"], "piped input\n___\nSummarize", False),
+        ([], "piped input\n", True),
+        (["--rich"], "piped input\n", True),
+        (["prompt", "--raw", "Summarize"], "piped input\n\n___\nSummarize", True),
+        (["--no-stream"], "piped input\n", False),
+        (["prompt", "--no-stream", "Summarize"], "piped input\n\n___\nSummarize", False),
     ],
 )
 def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expected_prompt, stream):
@@ -258,7 +258,7 @@ def test_template_and_explicit_choices_preserve_defaults_provenance(
     from lmterminal import templates
 
     (tmp_path / "fixture.yaml").write_text(
-        f'system: "Reply concisely. "\nuser: "Translate: "\nmodel: {template_model or "null"}\n',
+        f'system: "Reply concisely. "\nprompt: "Translate: "\nmodel: {template_model or "null"}\n',
         encoding="UTF-8",
     )
     monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
@@ -281,8 +281,8 @@ def test_template_and_explicit_choices_preserve_defaults_provenance(
     assert calls == [
         dict(
             messages=[
-                {"role": "system", "content": "Reply concisely."},
-                {"role": "user", "content": "Translate:hi"},
+                {"role": "system", "content": "Reply concisely. "},
+                {"role": "user", "content": "hi\n___\nTranslate: "},
             ],
             model=model,
             n=1,

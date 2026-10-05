@@ -17,11 +17,12 @@ def chunk(text):
 def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path, verbosity):
     monkeypatch.setattr(lib, "get_api_key", lambda: "sk-private-key")
     monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "missing.json")
-    monkeypatch.setattr(
-        lib,
-        "handle_template",
-        lambda *args: ("private-system", "private-template-prompt", "4o"),
+    from lmterminal import templates
+
+    (tmp_path / "synthetic.yaml").write_text(
+        'system: private-system\nprompt: private-template-prompt\nmodel: "4o"\n', encoding="UTF-8"
     )
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
     calls = []
 
     def create(**kwargs):

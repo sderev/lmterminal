@@ -15,8 +15,8 @@ from .code_themes import resolve_code_theme
 from .estimation import estimate_request
 from .model_registry import resolve_model_name
 from .request_options import DEFAULT_MODEL as DEFAULT_MODEL  # noqa: PLC0414 -- public constant
-from .request_options import UNSET, prepare_request
-from .templates import handle_template
+from .request_options import UNSET, PreparedRequest, prepare_request, validate_request_options
+from .templates import Template, load_template
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
@@ -26,66 +26,108 @@ DEFAULT_CODE_BLOCK_THEME = "monokai"
 DEFAULT_INLINE_CODE_THEME = "blue on black"
 
 
-def prepare_and_generate_response(
-    system: str,
-    template: str,
-    model,
-    emoji: bool,
-    prompt_input: str,
-    temperature,
-    tokens: bool,
-    no_stream: bool,
-    raw: bool,
-    debug: bool,
+class RequestResolutionError(ValueError):
+    """Invocation inputs or effective request settings cannot be resolved."""
+
+
+class SystemTemplateConflict(RequestResolutionError):
+    """A supplied system argument cannot accompany a template."""
+
+
+def _join_inputs(stored, supplied):
+    return stored + "\n\n" + supplied if stored and supplied else stored or supplied
+
+
+def resolve_request(
     *,
+    template: Template | str | None = None,
+    system=UNSET,
+    prompt: str = "",
+    text: str = "",
+    model=UNSET,
+    temperature=UNSET,
     reasoning_effort=UNSET,
-    request_options: dict | None = None,
+    request_options=None,
+) -> PreparedRequest:
+    """Resolve inputs offline into a PreparedRequest shared by CLI and library.
+
+    Explicit scalars override template settings, then package defaults. Explicit
+    None omits a control. Options merge by top-level key. System argument presence
+    conflicts with any template, even when the argument is empty or None.
+    """
+    if template is not None and system is not UNSET:
+        raise SystemTemplateConflict("You cannot use both `--template` and `--system`.")
+    if isinstance(template, str):
+        template = load_template(template)
+    if template is not None and not isinstance(template, Template):
+        raise RequestResolutionError("Template must be a Template, a name or None.")
+    for name, value in (("prompt", prompt), ("text", text)):
+        if not isinstance(value, str):
+            raise RequestResolutionError(f"Argument `{name}` must be text.")
+    if system is not UNSET and system is not None and not isinstance(system, str):
+        raise RequestResolutionError("Argument `system` must be text or None.")
+    stored = template if template is not None else Template()
+    system = stored.system if system is UNSET else system or ""
+    task = _join_inputs(stored.prompt, prompt)
+    content = _join_inputs(stored.text, text)
+    user = content + "\n___\n" + task if content and task else content or task
+    if model is UNSET and stored.model is not None:
+        model = stored.model
+    if model is not UNSET:
+        canonical = resolve_model_name(model) if isinstance(model, str) else None
+        if canonical is None:
+            raise RequestResolutionError("Argument/field `model` must be a registered model name.")
+        model = canonical
+    if temperature is UNSET and stored.temperature is not None:
+        temperature = stored.temperature
+    if (
+        temperature is not UNSET
+        and temperature is not None
+        and (
+            isinstance(temperature, bool)
+            or not isinstance(temperature, (int, float))
+            or not 0 <= temperature <= 2
+        )
+    ):
+        raise RequestResolutionError("Argument `temperature` must be between 0 and 2 or None.")
+    if reasoning_effort is UNSET and stored.reasoning_effort is not None:
+        reasoning_effort = stored.reasoning_effort
+    try:
+        validate_request_options(request_options)
+        options = {**stored.request_options, **(request_options or {})}
+        messages = openai_utils.format_prompt(system, user)
+        # Retain the existing o1 message policy in both entry points.
+        if isinstance(model, str) and "o1" in model:
+            messages = [{"role": "user", "content": user}]
+        return prepare_request(model, messages, temperature, reasoning_effort, options)
+    except (TypeError, ValueError) as error:
+        raise RequestResolutionError(str(error)) from error
+
+
+def prepare_and_generate_response(
+    request,
+    *,
+    emoji=False,
+    tokens=False,
+    no_stream=False,
+    raw=False,
+    debug=False,
     diagnostics=None,
 ):
-    """
-    Handles the parameters.
-    """
-    if diagnostics:
-        diagnostics.mark("request preparation started", level=2)
-    if not system:
-        system = ""
-
-    if template:
-        system, prompt_input, template_model = handle_template(
-            template, system, prompt_input, model
-        )
-        # An explicit model bypasses the template, even when it equals the default.
-        if model is UNSET and template_model is not UNSET:
-            model = resolve_model_name(template_model) if isinstance(template_model, str) else None
-            if model is None:
-                raise click.BadParameter(f"Invalid template model name: {template_model!r}")
-
+    """Render, estimate or send an already resolved request."""
     if emoji:
-        system = add_emoji(system)
-
-    prompt = openai_utils.format_prompt(system, prompt_input)
-
-    # Temporary reformatting of the prompt for `o1` models
-    # as they don't support system messages yet.
-    if isinstance(model, str) and "o1" in model:
-        prompt = [
-            {
-                "role": "user",
-                "content": prompt_input,
-            },
-        ]
-
-    request = _prepare_request(model, prompt, temperature, reasoning_effort, request_options)
+        messages = [dict(message) for message in request.messages]
+        if messages and messages[0]["role"] == "system":
+            messages[0]["content"] = add_emoji(messages[0]["content"])
+        request = PreparedRequest(request.model, messages, request.controls)
     if diagnostics:
         diagnostics.request_prepared(request, not no_stream)
     if debug:
         display_debug_information(
-            request.messages, request.model, None if temperature is UNSET else temperature
+            request.messages, request.model, request.controls.get("temperature")
         )
-
     if tokens:
         display_tokens_count_and_cost(request)
-
     return _generate_prepared_response(request, raw, not no_stream, diagnostics=diagnostics)
 
 

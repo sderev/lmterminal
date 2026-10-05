@@ -182,16 +182,63 @@ are checked by the API.
 
 ## Templates
 
-```bash
-lmt templates add explain
-lmt templates edit explain
-lmt templates list
-lmt --template explain "Explain this code"
+Templates are YAML files in `~/.config/lmt/templates/`. For example, save
+`translate.yaml` with:
+
+```yaml
+prompt: Translate into English.
 ```
 
-Templates are YAML files in `~/.config/lmt/templates/` with `system`, `user` and
-`model` fields. They prepend instructions to your prompt. `--template` and
-`--system` cannot be used together.
+```bash
+printf 'Bonjour.' | lmt -t translate "Keep product names unchanged."
+lmt -t translate --text 'Bonjour.' "Keep product names unchanged."
+lmt templates edit translate
+lmt templates list
+```
+
+Names are extensionless basenames. Fields: `system`, `prompt` (task instructions),
+`text` (content), `model`, `temperature`, `reasoning_effort`, `request_options`.
+Positional arguments append to template instructions; stdin or literal `--text`
+appends to template content. Each append inserts a blank line and preserves
+whitespace. Content precedes instructions with `\n___\n` between them. There is
+no variable substitution. `--text` with nonempty stdin is an error; a template
+with a task can run in a terminal without waiting for Ctrl+D.
+
+Explicit settings override template settings, then package defaults. Template
+null scalars are unspecified. Omitted temperature follows the sampling policy
+above; a numeric template temperature, including `1`, is explicit and subject to
+model validation. Library `temperature=None` overrides a stored value and omits
+the field. An explicit model keeps its provider reasoning
+default unless an effort is supplied by the template or invocation. Additional
+options merge by top-level key; an explicit nested object replaces the stored
+object. Any supplied `--system`, including an empty value, conflicts with
+`--template`, even when that template has no system field.
+
+Migrate old `user` fields to `prompt` for instructions or `text` for content;
+`user` is rejected. Library callers use the same offline resolver:
+
+```python
+from lmterminal.lib import resolve_request
+from lmterminal.templates import load_template
+
+request = resolve_request(
+    template=load_template("translate"),
+    text="Bonjour.",
+    prompt="Keep product names unchanged.",
+)
+```
+
+`load_template` returns a validated `Template` and raises `TemplateError` for
+name/file/schema errors. `resolve_request` also accepts a template name or an
+in-memory `Template`; it raises `RequestResolutionError` for invocation/control
+errors, including `SystemTemplateConflict` for any explicit `system` with a
+template (`""` and `None` included). No key or provider access occurs during
+resolution. Use the returned `PreparedRequest` with `estimate_request` or
+`gpt_integration.send_prepared_request(api_key, request, stream=False)`.
+Omitted controls inherit; explicit library `temperature=None` or
+`reasoning_effort=None` omits that control. The previous template composition
+helpers are replaced by this API; `prepare_and_generate_response` now takes a
+prepared request plus keyword output flags.
 
 ## Library input estimates
 
