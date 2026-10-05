@@ -1,15 +1,9 @@
-import hashlib
-import os
-import shutil
-import socket
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 
 import click
 import pytest
 import tiktoken.load
-import tiktoken.registry
 from click.testing import CliRunner
 
 from lmterminal import cli, estimation, gpt_integration, lib
@@ -40,51 +34,27 @@ def test_current_ids_have_no_guessed_tokenizer(monkeypatch, name, model):
     assert result.warnings == ("No known tokenizer for this model.",)
 
 
-@pytest.fixture(autouse=True)
-def no_provider_or_download(monkeypatch, tmp_path):
-    def forbidden(*args, **kwargs):
-        pytest.fail(
-            "Estimation tests must not access credentials, providers or tokenizer downloads"
-        )
-
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
-    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path / "empty-cache"))
-    monkeypatch.setattr(lib, "get_api_key", forbidden)
-    monkeypatch.setattr(gpt_integration, "_get_client", forbidden)
-    monkeypatch.setattr(gpt_integration.openai, "OpenAI", forbidden)
-    monkeypatch.setattr(socket.socket, "connect", forbidden)
-    monkeypatch.setattr(tiktoken.load, "read_file", forbidden)
-    monkeypatch.setattr(tiktoken.registry, "ENCODINGS", {})
+pytestmark = pytest.mark.usefixtures("no_provider_or_download")
 
 
 @pytest.fixture
 def fake_encoder(monkeypatch):
     # Only tests about request scope/control flow use this non-tokenizer stand-in.
-    encoder = SimpleNamespace(encode_ordinary=lambda text: list(text))
-    monkeypatch.setattr(estimation.tiktoken, "get_encoding", lambda _: encoder)
-    return encoder
+    def resolve(model):
+        return SimpleNamespace(
+            name=tiktoken.encoding_name_for_model(model),
+            encode_ordinary=lambda text: list(text),
+        )
+
+    monkeypatch.setattr(estimation.tiktoken, "encoding_for_model", resolve)
 
 
 @pytest.fixture
-def real_encoder(monkeypatch, tmp_path):
-    # Explicit opt-in asset source. Never consult a user's implicit/default cache.
-    source = os.environ.get("LMT_TEST_TIKTOKEN_CACHE")
-    if not source:
-        pytest.skip("Set LMT_TEST_TIKTOKEN_CACHE to a provisioned o200k_base cache")
-    url = "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken"
-    filename = hashlib.sha1(url.encode()).hexdigest()
-    target = tmp_path / "oracle-cache"
-    target.mkdir()
-    shutil.copyfile(Path(source) / filename, target / filename)
-    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(target))
+def real_encoder(tokenizer_cache):
     return tiktoken.get_encoding("o200k_base")
 
 
 def test_real_text_oracles_and_literal_cli(real_encoder):
-    # Tokenizer oracles, not measurements of provider usage.
-    assert len(real_encoder.encode_ordinary("お誕生日おめでとう")) == 8
-    assert len(real_encoder.encode_ordinary("<|endoftext|>")) == 7
     request = prepare_request("5-nano", gpt_integration.format_prompt("", "hello"))
     result = estimation.estimate_request(request)
     assert result.message_tokens == result.input_tokens == 12
@@ -209,12 +179,13 @@ def test_service_tier_unpriced(fake_encoder, option):
     assert "USD" not in result.output
 
 
-def test_missing_assets_are_actionable(monkeypatch):
+@pytest.mark.parametrize("error", [OSError, KeyError])
+def test_missing_assets_are_actionable(monkeypatch, error):
     downloads = []
 
     def denied(path):
         downloads.append(path)
-        raise OSError("Public asset unavailable")
+        raise error("Public asset unavailable")
 
     monkeypatch.setattr(tiktoken.load, "read_file", denied)
     result = CliRunner().invoke(cli.lmt, ["--tokens"], input="hello")

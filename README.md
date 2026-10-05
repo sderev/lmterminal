@@ -51,8 +51,10 @@ tokens. Output/reasoning, tool fees and service-tier adjustments are excluded.
 For GPT-5.4 and the models above, the long-context rate applies above 272,000
 estimated input tokens; uncertainty near that boundary can change the applicable
 rate. Estimates are not bills.
-The installed tokenizer must recognize the model: estimates for the new IDs
-remain unavailable when `tiktoken` cannot resolve them.
+LMterminal requires `tiktoken` 0.14.0 or later and asks its resolver for the exact
+canonical model ID. GPT-3.5/4/Turbo use `cl100k_base`; supported GPT-4o/4.1,
+o-series and GPT-5 models use `o200k_base`. GPT-6 estimates remain unavailable
+while upstream has no mapping; no other model's tokenizer is substituted.
 
 Tools, functions, schemas and unclassified request options produce a message-only
 subtotal with a named omission, without a whole-request token or cost estimate.
@@ -203,6 +205,24 @@ colors, create or edit `~/.config/lmt/config.json`, preserving any existing fiel
     "inline_code_theme": "blue on black"
 }
 ```
+
+## Tests
+
+Provision the two public vocabularies once, then run the encoder checks and gate:
+
+```bash
+export LMT_TEST_TIKTOKEN_CACHE="$PWD/.cache/tokenizer-tests"
+TIKTOKEN_CACHE_DIR="$LMT_TEST_TIKTOKEN_CACHE" uv run --locked --group dev python -c 'import tiktoken; tiktoken.get_encoding("cl100k_base"); tiktoken.get_encoding("o200k_base")'
+uv run --locked --group dev pytest tests/tokenizer_test.py tests/estimation_test.py
+gate
+```
+
+Tests copy these assets into an isolated cache and block downloads, key access
+and provider clients. Both vocabularies have fixed token-count oracles; every
+registered Chat Completions model and alias has an independent resolver
+expectation. CI provisions the assets for each Python version and fails if they
+are absent or invalid. Local runs without `LMT_TEST_TIKTOKEN_CACHE` skip the
+vocabulary checks. Live API tests remain opt-in with `--run-live`.
 
 ## License
 

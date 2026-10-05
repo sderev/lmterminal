@@ -12,7 +12,7 @@ from importlib.metadata import version
 
 import tiktoken
 
-from .model_registry import get_input_price_per_million, get_price_band, get_tokenizer_model
+from .model_registry import get_input_price_per_million, get_price_band
 from .request_options import PreparedRequest
 
 # These controls do not contribute input text. Anything unclassified is omitted
@@ -118,15 +118,19 @@ def estimate_request(request: PreparedRequest) -> InputEstimate:
     if problem:
         return replace(result, warnings=(*result.warnings, problem))
     try:
-        encoding_name = tiktoken.encoding_name_for_model(get_tokenizer_model(request.model))
-    except KeyError:
-        return replace(result, warnings=(*result.warnings, "No known tokenizer for this model."))
-    result = replace(result, encoding=encoding_name)
-    try:
-        encoding = tiktoken.get_encoding(encoding_name)
+        encoding = tiktoken.encoding_for_model(request.model)
     except Exception:  # noqa: BLE001 - tokenizer loaders use varied filesystem/network errors.
+        # Name lookup loads no assets and distinguishes an unknown model from
+        # a vocabulary failure, even when the loader itself raised KeyError.
+        try:
+            encoding_name = tiktoken.encoding_name_for_model(request.model)
+        except KeyError:
+            return replace(
+                result, warnings=(*result.warnings, "No known tokenizer for this model.")
+            )
         return replace(
             result,
+            encoding=encoding_name,
             warnings=(
                 *result.warnings,
                 (
@@ -135,6 +139,7 @@ def estimate_request(request: PreparedRequest) -> InputEstimate:
                 ),
             ),
         )
+    result = replace(result, encoding=encoding.name)
     tokens = _count_messages(request.messages, encoding)
     result = replace(result, message_tokens=tokens, request_complete=not omissions)
     if omissions:
