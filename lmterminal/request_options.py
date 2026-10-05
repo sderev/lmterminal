@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .model_registry import get_request_model_spec, resolve_model_name
 
 DEFAULT_MODEL = "gpt-6-luna"
-# Distinguish omission from an explicit model or library reasoning_effort=None.
+# Distinguish omitted model/controls from explicit choices, including library None.
 UNSET = object()
 
 RESERVED_REQUEST_OPTION_KEYS = {
@@ -35,13 +35,17 @@ def validate_request_options(options):
 
 
 def sampling_supported(model, reasoning_effort):
-    """Apply the documented sampling restrictions for registered families."""
+    """Return True/False for known sampling rules, None for unverified acceptance."""
     spec = get_request_model_spec(model)
-    if spec is not None and spec.reasoning_efforts is not None:
-        effective_effort = (
-            spec.default_reasoning_effort if reasoning_effort is None else reasoning_effort
-        )
-        return effective_effort == "none" and "none" in spec.reasoning_efforts
+    if spec is not None:
+        if spec.sampling_policy == "unverified":
+            return None
+        if spec.sampling_policy == "none_only":
+            effective_effort = (
+                spec.default_reasoning_effort if reasoning_effort is None else reasoning_effort
+            )
+            return effective_effort == "none"
+        return spec.sampling_policy == "always"
     family = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model)
     if family in {"gpt-5", "gpt-5-mini", "gpt-5-nano"}:
         return False
@@ -71,12 +75,15 @@ def prepare_request_controls(model, temperature, reasoning_effort, request_optio
     controls = dict(request_options or {})
     if reasoning_effort is not None:
         controls["reasoning_effort"] = reasoning_effort
-    if sampling_supported(model, reasoning_effort):
-        if temperature is not None:
+    sampling = sampling_supported(model, reasoning_effort)
+    if sampling is not False:
+        if temperature is UNSET:
+            if sampling is True:
+                controls["temperature"] = 1
+        elif temperature is not None:
             controls["temperature"] = temperature
     else:
-        # Keep the public default of 1 while omitting an unsupported field.
-        if temperature not in (None, 1):
+        if temperature is not UNSET and temperature is not None:
             raise ValueError(
                 f"Temperature is not supported for `{model}` with this reasoning effort."
             )
@@ -98,7 +105,9 @@ class PreparedRequest:
     controls: dict
 
 
-def prepare_request(model, messages, temperature=1, reasoning_effort=UNSET, request_options=None):
+def prepare_request(
+    model, messages, temperature=UNSET, reasoning_effort=UNSET, request_options=None
+):
     """Finalize once before estimation or transport; unknown library models pass through."""
     implicit_model = model is UNSET
     if implicit_model:

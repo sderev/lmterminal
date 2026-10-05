@@ -79,6 +79,7 @@ def test_validate_model_name_invalid():
 @pytest.mark.parametrize(
     "value",
     [
+        None,
         0,
         0.5,
         1.0,
@@ -216,9 +217,12 @@ def test_option_errors_are_cli_errors(monkeypatch, option, message):
     assert message in result.output
 
 
-def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch):
+@pytest.mark.parametrize("temperature", ["0.3", "1"])
+def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch, temperature):
     monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
-    result = CliRunner().invoke(cli.lmt, ["-m", "gpt-5-nano", "--temperature", "0.3"], input="hi")
+    result = CliRunner().invoke(
+        cli.lmt, ["-m", "gpt-5-nano", "--temperature", temperature], input="hi"
+    )
     assert result.exit_code == 2
     assert "Temperature is not supported" in result.output
 
@@ -229,6 +233,14 @@ def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch):
         ("gpt-4o", [], None, "gpt-4o", {"temperature": 1}),
         ("gpt-4o", ["-m", "gpt-6-luna"], None, "gpt-6-luna", {}),
         ("luna", [], None, "gpt-6-luna", {}),
+        ("gpt-5.6", [], None, "gpt-5.6-sol", {}),
+        (
+            "gpt-4o",
+            [],
+            {"prompt": {"temperature": 0.7}},
+            "gpt-4o",
+            {"temperature": 0.7},
+        ),
         (None, [], None, "gpt-6-luna", {"reasoning_effort": "none", "temperature": 1}),
         (None, ["--reasoning-effort", "high"], None, "gpt-6-luna", {"reasoning_effort": "high"}),
         (
@@ -323,3 +335,97 @@ def test_live_call(model, request):
 
     if result.exit_code != 0:
         pytest.fail(result.output)
+
+
+def test_conditional_temperature_help():
+    result = CliRunner().invoke(cli.lmt, ["prompt", "--help"])
+    assert result.exit_code == 0
+    assert "defaults to 1 where supported" in " ".join(result.output.split())
+    assert "unverified" in result.output
+    assert "[default: 1]" not in result.output
+
+
+@pytest.mark.parametrize("provider_rejects", [False, True])
+def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provider_rejects):
+    import httpx
+    import openai
+
+    from lmterminal import gpt_integration
+
+    calls = []
+    error = openai.BadRequestError(
+        "sampling rejected",
+        response=httpx.Response(400, request=httpx.Request("POST", "https://example.invalid")),
+        body={"error": {"message": "sampling rejected"}},
+    )
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        if provider_rejects:
+            raise error
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    cli_result = CliRunner().invoke(
+        cli.lmt,
+        [
+            "-m",
+            "5.6",
+            "--no-stream",
+            "--temperature",
+            "1",
+            "--reasoning-effort",
+            "none",
+            "-o",
+            "top_p=0.9",
+            "-o",
+            "extra_body.logprobs=true",
+        ],
+        input="hello",
+    )
+    messages = [{"role": "system", "content": ""}, {"role": "user", "content": "hello"}]
+    options = {"top_p": 0.9, "extra_body": {"logprobs": True}}
+    if provider_rejects:
+        assert cli_result.exit_code == 1
+        assert "sampling rejected" in cli_result.output
+        with pytest.raises(openai.BadRequestError) as raised:
+            gpt_integration.chatgpt_request(
+                "test-key",
+                messages,
+                "gpt-5.6",
+                temperature=1,
+                reasoning_effort="none",
+                request_options=options,
+            )
+        assert raised.value is error
+    else:
+        assert cli_result.exit_code == 0, cli_result.output
+        assert cli_result.stdout == "pong\n"
+        assert (
+            gpt_integration.chatgpt_request(
+                "test-key",
+                messages,
+                "gpt-5.6",
+                temperature=1,
+                reasoning_effort="none",
+                request_options=options,
+            )[0]
+            == "pong"
+        )
+    assert (
+        calls
+        == [
+            dict(
+                messages=messages,
+                model="gpt-5.6-sol",
+                n=1,
+                stream=False,
+                temperature=1,
+                reasoning_effort="none",
+                **options,
+            )
+        ]
+        * 2
+    )

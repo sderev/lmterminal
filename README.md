@@ -35,10 +35,16 @@ default unless you pass `--reasoning-effort`, including when you select Luna.
 `lmt models` lists the registered Chat Completions models and aliases. Other
 endpoints, including Responses-only Pro and Codex models, and retired models are
 not supported. Library requests also reject known Responses-only Pro snapshots.
-Model access and availability depend on your OpenAI account.
+Model access and availability depend on your OpenAI account. The catalog includes
+GPT-5.5, GPT-5.6 Sol/Terra/Luna, GPT-6 Sol and documented regular-text GPT-5
+snapshots. Use the exact dated ID to select a snapshot. Specialized Search API
+models are outside this catalog.
 
-GPT-6 Luna, GPT-6.1 Sol and GPT-6 Astra are available for text
-generation through Chat Completions. Their version aliases omit the `gpt-` prefix.
+GPT-5.5, GPT-5.6 Sol/Terra/Luna, GPT-6 Sol/Luna, GPT-6.1 Sol and GPT-6 Astra
+are available for text generation through Chat Completions. Version aliases omit
+the `gpt-` prefix:
+`5.5`, `5.6-sol`, `5.6-terra`, `5.6-luna` and `6-sol` select those exact releases.
+OpenAI's `gpt-5.6` alias and LMT's `5.6` shorthand resolve to `gpt-5.6-sol`.
 The family aliases `sol`, `luna` and `astra` select the newest supported plain
 release in the installed LMT catalog, currently `gpt-6.1-sol`, `gpt-6-luna` and
 `gpt-6-astra`. Package updates can advance these aliases; use an explicit model
@@ -50,9 +56,10 @@ supports Chat Completions function calling only with reasoning effort `none`.
 
 `--tokens` estimates text input tokens and **Standard uncached input** cost in USD,
 without reading your API key or sending a provider request. Message framing is a
-heuristic; provider usage may differ. Actual input may cost less with cached
-tokens. Output/reasoning, tool fees and service-tier adjustments are excluded.
-For GPT-5.4 and the models above, the long-context rate applies above 272,000
+heuristic; provider usage may differ. Cache reads and writes are excluded;
+actual input charges may be lower or higher. Output/reasoning, tool fees and
+service-tier adjustments are excluded. For GPT-5.4 (base), GPT-5.5, GPT-5.6 and
+GPT-6 models, the long-context rate applies above 272,000
 estimated input tokens; uncertainty near that boundary can change the applicable
 rate. Estimates are not bills.
 LMterminal requires `tiktoken` 0.14.0 or later and asks its resolver for the exact
@@ -143,22 +150,29 @@ Run `lmt prompt --help` for prompt options (also accepted without `prompt`).
 `--reasoning-effort none` requests no reasoning where supported. Omitting model
 and effort uses Luna with `none`; an explicitly selected model keeps its provider
 reasoning default when effort is omitted. Supported values depend on the model.
-The default temperature of 1 is omitted for models that do not support sampling,
-including GPT-5/nano/mini and o-series models;
-other temperature values are rejected for these models. GPT-5.1, GPT-5.2 and
-GPT-5.4 variants allow sampling with reasoning effort `none` (their default).
+Published effort lists are validated locally. GPT-5.5 accepts `none`, `low`,
+`medium`, `high`, `xhigh`; GPT-5.6 variants,
+GPT-6 Sol and GPT-6 Luna also accept `max`. These models default to `medium`.
+GPT-6.1 Sol and GPT-6 Astra accept `low`, `medium`, `high`, `xhigh`, `max`,
+excluding `none` and `minimal`; GPT-6.1 Sol defaults to `medium`.
 
-GPT-6 Luna supports `none`, `low`, `medium`, `high`, `xhigh`
-and `max`; an explicitly selected Luna model with omitted effort preserves its
-provider `medium` default. GPT-6.1 Sol and
-GPT-6 Astra support `low`, `medium`, `high`, `xhigh` and `max`; neither accepts
-`none` or `minimal`. GPT-6.1 Sol defaults to `medium`. These model/effort
-combinations are checked locally for both CLI and library requests. For these
-three models, temperature, `top_p`, `logprobs` and `top_logprobs` require an
-effective reasoning effort of `none` on GPT-6 Luna. Implicit requests use `none`;
-if you explicitly select Luna and omit effort, set `--reasoning-effort none` to
-use these controls. The default temperature of 1 is otherwise omitted; explicit
-incompatible controls are rejected.
+Temperature defaults to 1 where sampling is documented as allowed and is omitted
+for restricted or unverified combinations. GPT-5/nano/mini and o-series models
+reject explicit sampling controls. GPT-5.1/5.2/5.4 variants allow sampling with
+reasoning `none` (their default). GPT-6 Sol and Luna require effective `none`;
+implicit Luna requests use `none`, while explicitly selected Sol/Luna models
+require `--reasoning-effort none` to enable sampling.
+GPT-6.1 Sol and Astra reject sampling. These rules cover temperature, `top_p`,
+`logprobs` and `top_logprobs`, including explicit temperature `1`, which previously
+was silently omitted for incompatible combinations.
+
+GPT-5.5/5.6 sampling acceptance is unverified: implicit temperature is omitted,
+and explicit controls are forwarded unchanged for API validation, including with
+`none`. Provider errors remain failures. `--tokens` estimates locally and does not
+establish provider acceptance. Omitted library temperature follows this policy;
+explicit `temperature=None` omits the field. Numeric values, including `1`, are
+explicit controls. Explicit library `reasoning_effort=None` omits effort even
+when the model is omitted.
 
 Repeat `-o/--option key=value` for additional Chat Completions parameters. Values
 use JSON when valid, otherwise text; dotted keys build nested objects. Owned

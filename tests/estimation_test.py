@@ -69,7 +69,8 @@ def test_real_text_oracles_and_literal_cli(real_encoder):
     assert "Estimated input tokens: ~18" in output.output
     assert "Standard uncached input" in output.output
     assert "USD 0.0000009" in output.output
-    assert "cached tokens" in output.output
+    assert "Cache reads and writes are excluded" in output.output
+    assert "lower or higher" in output.output
 
 
 @pytest.mark.parametrize(
@@ -80,6 +81,9 @@ def test_real_text_oracles_and_literal_cli(real_encoder):
         ("gpt-5.4", 272000, "2.5", "0.68", "short"),
         ("gpt-5.4", 272001, "5", "1.360005", "long"),
         ("gpt-4.1", 300000, "2", "0.6", None),
+        ("gpt-5.5", 272000, "5", "1.36", "short"),
+        ("gpt-5.5-2026-04-23", 272001, "10", "2.72001", "long"),
+        ("gpt-5.6-sol", 272001, "8", "2.176008", "long"),
     ],
 )
 def test_numeric_prices(model, tokens, rate, cost, tier):
@@ -200,6 +204,7 @@ def test_missing_assets_are_actionable(monkeypatch, error):
 @pytest.mark.parametrize(
     "args,error",
     [
+        (["--temperature", "1"], "Temperature is not supported"),
         (["--temperature", "0.7"], "Temperature is not supported"),
         (["-o", "extra_body.top_p=0.5"], "top_p"),
     ],
@@ -283,3 +288,23 @@ def test_estimate_and_transport_receive_same_prepared_values(
             model=prepared.model, messages=prepared.messages, n=1, stream=False, **prepared.controls
         )
     ]
+
+
+def test_unverified_sampling_estimates_locally_without_asserting_acceptance(real_encoder):
+    messages = [{"role": "user", "content": "hello"}]
+    implicit = prepare_request("5.5", messages)
+    explicit = prepare_request(
+        "5.5",
+        messages,
+        temperature=1,
+        reasoning_effort="none",
+        request_options={"top_p": 0.9, "logprobs": True, "top_logprobs": 2},
+    )
+    assert explicit.controls == {
+        "temperature": 1,
+        "reasoning_effort": "none",
+        "top_p": 0.9,
+        "logprobs": True,
+        "top_logprobs": 2,
+    }
+    assert estimation.estimate_request(explicit) == estimation.estimate_request(implicit)

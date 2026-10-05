@@ -32,7 +32,7 @@ def prepare_and_generate_response(
     model,
     emoji: bool,
     prompt_input: str,
-    temperature: float,
+    temperature,
     tokens: bool,
     no_stream: bool,
     raw: bool,
@@ -79,7 +79,9 @@ def prepare_and_generate_response(
     if diagnostics:
         diagnostics.request_prepared(request, not no_stream)
     if debug:
-        display_debug_information(request.messages, request.model, temperature)
+        display_debug_information(
+            request.messages, request.model, None if temperature is UNSET else temperature
+        )
 
     if tokens:
         display_tokens_count_and_cost(request)
@@ -174,7 +176,7 @@ def generate_response(
     prompt: str | None = None,
     raw: bool = False,
     stream: bool = True,
-    temperature: float = 1,
+    temperature=UNSET,
     *,
     reasoning_effort=UNSET,
     request_options: dict | None = None,
@@ -183,7 +185,7 @@ def generate_response(
     """
     Generate a response; omitted model/effort use Luna/none.
 
-    Explicit models retain their provider effort default. Explicit None omits effort.
+    Explicit models retain their provider effort default. Explicit None omits the control.
     """
     if diagnostics:
         diagnostics.mark("request preparation started", level=2)
@@ -355,7 +357,7 @@ def display_tokens_count_and_cost(request):
     for reason in estimate.warnings:
         click.echo(f"Note: {reason}")
     click.echo("Local message framing is heuristic; provider usage may differ.")
-    click.echo("Actual input may cost less with cached tokens; cache hits are not predicted.")
+    click.echo("Cache reads and writes are excluded; actual input charges may be lower or higher.")
     click.echo("Excludes output/reasoning, tool fees and service-tier adjustments; not a bill.")
     sys.exit(1 if estimate.message_tokens is None else 0)
 

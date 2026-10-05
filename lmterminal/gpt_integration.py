@@ -42,7 +42,7 @@ def chatgpt_request(
     model=UNSET,
     # max_tokens=3900,
     n=1,
-    temperature=1,
+    temperature=UNSET,
     stop=None,
     stream=False,
     update_markdown_stream=None,
@@ -54,7 +54,7 @@ def chatgpt_request(
     """
     Sends a request to the OpenAI Chat API.
 
-    Omitted model/effort use Luna/none; explicit None omits effort.
+    Omitted model/effort use Luna/none; explicit None omits the control.
 
     Returns:
         tuple[str, float, object]:
