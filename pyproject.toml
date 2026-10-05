@@ -18,7 +18,7 @@ dependencies = [
     "pygments>=2.20",
     "PyYAML",
     "rich",
-    "tiktoken",
+    "tiktoken>=0.14.0",
 ]
 
 [project.urls]

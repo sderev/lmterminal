@@ -27,7 +27,15 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: uv sync --group dev
+        run: uv sync --locked --group dev
+
+      - name: Provision public tokenizer vocabularies
+        env:
+          TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/tiktoken
+        run: |
+          uv run --locked --group dev python -c 'import tiktoken; tiktoken.get_encoding("cl100k_base"); tiktoken.get_encoding("o200k_base")'
 
       - name: Run pytest
-        run: uv run --group dev pytest
+        env:
+          LMT_TEST_TIKTOKEN_CACHE: ${{ runner.temp }}/tiktoken
+        run: uv run --locked --group dev pytest
