@@ -4,12 +4,13 @@ import shutil
 import sys
 
 import click
+from click.core import ParameterSource
 from click_default_group import DefaultGroup
 
 from .diagnostics import RequestDiagnostics
 from .lib import DEFAULT_MODEL, edit_key, prepare_and_generate_response, set_key
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
-from .request_options import validate_request_options
+from .request_options import UNSET, validate_request_options
 from .templates import TEMPLATES_DIR, get_default_template_file_path
 
 
@@ -115,6 +116,7 @@ def lmt():
     "-m",
     default=DEFAULT_MODEL,
     help="The model to use for the requests.",
+    show_default=True,
     callback=validate_model_name,
 )
 @click.option(
@@ -139,7 +141,10 @@ def lmt():
 @click.option(
     "--reasoning-effort",
     type=click.Choice(REASONING_EFFORTS),
-    help="Set reasoning effort for models that support it; otherwise use the model default.",
+    help=(
+        "Set reasoning effort. Omitted model/effort use gpt-6-luna with none; "
+        "explicit models retain their model default."
+    ),
 )
 @click.option(
     "-o",
@@ -269,7 +274,7 @@ def prompt(
     prepare_and_generate_response(
         system,
         template,
-        model,
+        UNSET if ctx.get_parameter_source("model") is ParameterSource.DEFAULT else model,
         emoji,
         prompt_input,
         temperature,
@@ -277,7 +282,11 @@ def prompt(
         no_stream,
         raw,
         debug,
-        reasoning_effort=reasoning_effort,
+        reasoning_effort=(
+            UNSET
+            if ctx.get_parameter_source("reasoning_effort") is ParameterSource.DEFAULT
+            else reasoning_effort
+        ),
         request_options=request_options,
         diagnostics=diagnostics,
     )

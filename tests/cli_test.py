@@ -117,6 +117,8 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
                 {"role": "user", "content": expected_prompt},
             ],
             "model": lib.DEFAULT_MODEL,
+            "reasoning_effort": "none",
+            "temperature": 1,
             "n": 1,
             "stream": stream,
         }
@@ -197,9 +199,66 @@ def test_option_errors_are_cli_errors(monkeypatch, option, message):
 
 def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch):
     monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
-    result = CliRunner().invoke(cli.lmt, ["--temperature", "0.3"], input="hi")
+    result = CliRunner().invoke(cli.lmt, ["-m", "gpt-5-nano", "--temperature", "0.3"], input="hi")
     assert result.exit_code == 2
     assert "Temperature is not supported" in result.output
+
+
+@pytest.mark.parametrize(
+    "template_model, args, default_map, model, controls",
+    [
+        ("gpt-4o", [], None, "gpt-4o", {"temperature": 1}),
+        ("gpt-4o", ["-m", "gpt-6-luna"], None, "gpt-6-luna", {}),
+        ("luna", [], None, "gpt-6-luna", {}),
+        (None, [], None, "gpt-6-luna", {"reasoning_effort": "none", "temperature": 1}),
+        (None, ["--reasoning-effort", "high"], None, "gpt-6-luna", {"reasoning_effort": "high"}),
+        (
+            "gpt-4o",
+            [],
+            {"prompt": {"model": "luna", "reasoning_effort": "low"}},
+            "gpt-6-luna",
+            {"reasoning_effort": "low"},
+        ),
+    ],
+)
+def test_template_and_explicit_choices_preserve_defaults_provenance(
+    monkeypatch, tmp_path, template_model, args, default_map, model, controls
+):
+    from lmterminal import templates
+
+    (tmp_path / "fixture.yaml").write_text(
+        f'system: "Reply concisely. "\nuser: "Translate: "\nmodel: {template_model or "null"}\n',
+        encoding="UTF-8",
+    )
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
+    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    result = CliRunner().invoke(
+        cli.lmt,
+        ["--template", "fixture", "--no-stream", *args],
+        input="hi",
+        default_map=default_map,
+    )
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        dict(
+            messages=[
+                {"role": "system", "content": "Reply concisely."},
+                {"role": "user", "content": "Translate:hi"},
+            ],
+            model=model,
+            n=1,
+            stream=False,
+            **controls,
+        )
+    ]
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 from .model_registry import get_request_model_spec, resolve_model_name
 
+DEFAULT_MODEL = "gpt-6-luna"
+# Distinguish omission from an explicit model or library reasoning_effort=None.
+UNSET = object()
+
 RESERVED_REQUEST_OPTION_KEYS = {
     "messages": None,
     "model": "--model",
@@ -94,8 +98,13 @@ class PreparedRequest:
     controls: dict
 
 
-def prepare_request(model, messages, temperature=1, reasoning_effort=None, request_options=None):
+def prepare_request(model, messages, temperature=1, reasoning_effort=UNSET, request_options=None):
     """Finalize once before estimation or transport; unknown library models pass through."""
+    implicit_model = model is UNSET
+    if implicit_model:
+        model = DEFAULT_MODEL
+    if reasoning_effort is UNSET:
+        reasoning_effort = "none" if implicit_model else None
     if not isinstance(model, str) or not model:
         raise ValueError("Model must be a nonempty string.")
     model = resolve_model_name(model) or model

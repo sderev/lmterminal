@@ -14,14 +14,14 @@ from . import gpt_integration as openai_utils
 from .code_themes import resolve_code_theme
 from .estimation import estimate_request
 from .model_registry import resolve_model_name
-from .request_options import prepare_request
+from .request_options import DEFAULT_MODEL as DEFAULT_MODEL  # noqa: PLC0414 -- public constant
+from .request_options import UNSET, prepare_request
 from .templates import handle_template
 
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
 
-DEFAULT_MODEL = "gpt-5-nano"
 DEFAULT_CODE_BLOCK_THEME = "monokai"
 DEFAULT_INLINE_CODE_THEME = "blue on black"
 
@@ -29,7 +29,7 @@ DEFAULT_INLINE_CODE_THEME = "blue on black"
 def prepare_and_generate_response(
     system: str,
     template: str,
-    model: str,
+    model,
     emoji: bool,
     prompt_input: str,
     temperature: float,
@@ -38,7 +38,7 @@ def prepare_and_generate_response(
     raw: bool,
     debug: bool,
     *,
-    reasoning_effort: str | None = None,
+    reasoning_effort=UNSET,
     request_options: dict | None = None,
     diagnostics=None,
 ):
@@ -54,9 +54,8 @@ def prepare_and_generate_response(
         system, prompt_input, template_model = handle_template(
             template, system, prompt_input, model
         )
-        # If a model name is given in the options,
-        # it will bypass the model name in the template.
-        if model == DEFAULT_MODEL:
+        # An explicit model bypasses the template, even when it equals the default.
+        if model is UNSET and template_model is not UNSET:
             model = resolve_model_name(template_model) if isinstance(template_model, str) else None
             if model is None:
                 raise click.BadParameter(f"Invalid template model name: {template_model!r}")
@@ -68,7 +67,7 @@ def prepare_and_generate_response(
 
     # Temporary reformatting of the prompt for `o1` models
     # as they don't support system messages yet.
-    if "o1" in model:
+    if isinstance(model, str) and "o1" in model:
         prompt = [
             {
                 "role": "user",
@@ -171,18 +170,20 @@ def get_markdown_inline_code_theme() -> str:
 
 
 def generate_response(
-    model: str = DEFAULT_MODEL,
+    model=UNSET,
     prompt: str | None = None,
     raw: bool = False,
     stream: bool = True,
     temperature: float = 1,
     *,
-    reasoning_effort: str | None = None,
+    reasoning_effort=UNSET,
     request_options: dict | None = None,
     diagnostics=None,
 ):
     """
-    Generates a response from a ChatGPT.
+    Generate a response; omitted model/effort use Luna/none.
+
+    Explicit models retain their provider effort default. Explicit None omits effort.
     """
     if diagnostics:
         diagnostics.mark("request preparation started", level=2)
