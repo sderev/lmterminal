@@ -346,6 +346,9 @@ def templates():
     """
 
 
+lmt.add_command(templates, name="template")
+
+
 @templates.command("list")
 def print_templates_list():
     """

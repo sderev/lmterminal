@@ -218,9 +218,13 @@ lmt templates list
 lmt templates --help
 ```
 
+`template` is an alias for `templates`, for example `lmt template view translate`.
+Both spellings select template management. To send a prompt starting with the word
+`template`, use the explicit prompt command: `lmt prompt template ...`.
+
 `lmt templates add` opens the editor selected by `VISUAL` or `EDITOR`; an
 unchanged draft is removed. With shell completion enabled, template names complete
-for `-t` and `templates view`, `edit`, `delete`, and `rename`.
+for `-t` and `view`, `edit`, `delete`, and `rename` under either group spelling.
 
 Names are extensionless basenames. Fields: `system`, `prompt` (task instructions),
 `text` (content), `model`, `temperature`, `reasoning_effort`, `request_options`.
