@@ -283,6 +283,25 @@ def test_template_management_refuses_overwrite_and_renames_basename(monkeypatch,
         templates.template_path("new.yaml")
 
 
+@pytest.mark.parametrize("command_name", ["view", "edit", "delete", "rename"])
+def test_template_management_argument_completion(
+    no_provider_or_download, monkeypatch, tmp_path, command_name
+):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    directory.mkdir(parents=True)
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    for name in ("translate.yaml", "transcribe.yaml", "summarize.yaml", "trans.txt", "trans.yml"):
+        (directory / name).write_text("prompt: Task\n", encoding="UTF-8")
+    (directory / "trans-directory.yaml").mkdir()
+    command = cli.templates.commands[command_name]
+    argument = next(param for param in command.params if param.name == "template")
+    with cli.click.Context(command) as ctx:
+        assert [item.value for item in argument.shell_complete(ctx, "trans")] == [
+            "transcribe",
+            "translate",
+        ]
+
+
 def test_malformed_yaml_traceback_does_not_reveal_content(tmp_path):
     (tmp_path / "bad.yaml").write_text("prompt: [PRIVATE\n", encoding="UTF-8")
     with pytest.raises(TemplateError) as error:

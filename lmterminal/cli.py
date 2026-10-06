@@ -357,7 +357,7 @@ def print_templates_list():
 
 
 @templates.command("view")
-@click.argument("template")
+@click.argument("template", shell_complete=complete_template)
 def view_template(template):
     """
     View a template.
@@ -369,7 +369,7 @@ def view_template(template):
 
 
 @templates.command()
-@click.argument("template")
+@click.argument("template", shell_complete=complete_template)
 def edit(template):
     """
     Edit a template.
@@ -423,7 +423,7 @@ def add_template(template):
 
 
 @templates.command("delete")
-@click.argument("template", required=True)
+@click.argument("template", required=True, shell_complete=complete_template)
 def delete_template(template):
     """
     Delete the template.
@@ -447,7 +447,7 @@ def delete_template(template):
 
 
 @templates.command("rename")
-@click.argument("template", required=True)
+@click.argument("template", required=True, shell_complete=complete_template)
 def rename_template(template):
     """
     Rename the template.
