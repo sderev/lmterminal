@@ -283,6 +283,90 @@ def test_template_management_refuses_overwrite_and_renames_basename(monkeypatch,
         templates.template_path("new.yaml")
 
 
+@pytest.mark.parametrize("group_name", ["template", "templates"])
+def test_template_management_alias_routes_list_and_view(
+    no_provider_or_download, monkeypatch, tmp_path, group_name
+):
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "prepare_and_generate_response",
+        lambda *args, **kwargs: pytest.fail("Template management must not generate a response"),
+    )
+    (tmp_path / "translate.yaml").write_text("prompt: Translate\n", encoding="UTF-8")
+    (tmp_path / "transcribe.yaml").write_text("prompt: Transcribe\n", encoding="UTF-8")
+    (tmp_path / "ignore.txt").touch()
+    runner = CliRunner()
+    listed = runner.invoke(cli.lmt, [group_name, "list"])
+    assert listed.exit_code == 0, listed.output
+    assert listed.output == "transcribe\ntranslate\n"
+    viewed = runner.invoke(cli.lmt, [group_name, "view", "translate"])
+    assert viewed.exit_code == 0, viewed.output
+    assert viewed.output.strip() == "prompt: Translate"
+
+
+@pytest.mark.parametrize("group_name", ["template", "templates"])
+@pytest.mark.parametrize("args", [["--help"], [], ["invalid-command"]])
+def test_template_management_alias_help_and_errors(no_provider_or_download, group_name, args):
+    result = CliRunner().invoke(cli.lmt, [group_name, *args])
+    assert result.exit_code == (0 if args == ["--help"] else 2), result.output
+    assert f"Usage: lmt {group_name}" in result.output
+    if args == ["invalid-command"]:
+        assert "No such command 'invalid-command'" in result.output
+    else:
+        assert "Manage the templates." in result.output
+        for command in ("add", "delete", "edit", "list", "rename", "view"):
+            assert f"  {command} " in result.output
+
+
+def test_template_management_alias_in_root_help(no_provider_or_download):
+    result = CliRunner().invoke(cli.lmt, ["--help"])
+    assert result.exit_code == 0
+    for group_name in ("template", "templates"):
+        assert f"  {group_name} " in result.output
+
+
+def test_explicit_prompt_accepts_template_command_word(no_provider_or_download, monkeypatch):
+    requests = []
+    monkeypatch.setattr(
+        cli, "prepare_and_generate_response", lambda request, **kwargs: requests.append(request)
+    )
+    result = CliRunner().invoke(cli.lmt, ["prompt", "template", "list"])
+    assert result.exit_code == 0, result.output
+    assert len(requests) == 1
+    assert requests[0].messages[-1]["content"] == "template list"
+
+
+@pytest.mark.parametrize("group_name", ["template", "templates"])
+def test_template_management_alias_bash_completion(
+    no_provider_or_download, monkeypatch, tmp_path, group_name
+):
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    for name in ("translate.yaml", "transcribe.yaml", "summarize.yaml", "trans.txt"):
+        (tmp_path / name).write_text("prompt: Task\n", encoding="UTF-8")
+    (tmp_path / "trans-directory.yaml").mkdir()
+    runner = CliRunner()
+    for words, expected in [
+        (f"lmt {group_name} ", ["add", "delete", "edit", "list", "rename", "view"]),
+        *[
+            (f"lmt {group_name} {command} trans", ["transcribe", "translate"])
+            for command in ("view", "edit", "delete", "rename")
+        ],
+    ]:
+        result = runner.invoke(
+            cli.lmt,
+            [],
+            prog_name="lmt",
+            env={
+                "_LMT_COMPLETE": "bash_complete",
+                "COMP_WORDS": words,
+                "COMP_CWORD": "2" if words.endswith(" ") else "3",
+            },
+        )
+        assert result.exit_code == 0, result.output
+        assert result.output.splitlines() == [f"plain,{value}" for value in expected]
+
+
 @pytest.mark.parametrize("command_name", ["view", "edit", "delete", "rename"])
 def test_template_management_argument_completion(
     no_provider_or_download, monkeypatch, tmp_path, command_name
