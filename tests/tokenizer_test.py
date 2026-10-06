@@ -65,7 +65,6 @@ EXPECTED_MODELS = {
     None: ("gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"),
 }
 EXPECTED_ALIASES = {
-    "chatgpt": "gpt-3.5-turbo",
     "3.5": "gpt-3.5-turbo",
     "4": "gpt-4",
     "gpt4": "gpt-4",

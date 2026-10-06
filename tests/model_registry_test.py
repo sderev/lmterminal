@@ -12,7 +12,8 @@ from lmterminal import cli, estimation, gpt_integration, lib, model_registry
         ("5.4", "gpt-5.4"),
         ("GPT-5.4-MINI", "gpt-5.4-mini"),
         ("gpt-3.5-turbo-0125", "gpt-3.5-turbo-0125"),
-        ("chatgpt", "gpt-3.5-turbo"),
+        ("gpt-3.5-turbo", "gpt-3.5-turbo"),
+        ("3.5", "gpt-3.5-turbo"),
         ("6-luna", "gpt-6-luna"),
         ("6.1-sol", "gpt-6.1-sol"),
         ("6-astra", "gpt-6-astra"),
@@ -26,6 +27,17 @@ from lmterminal import cli, estimation, gpt_integration, lib, model_registry
 )
 def test_resolve_chat_model(name, canonical):
     assert model_registry.resolve_model_name(name) == canonical
+
+
+def test_removed_chatgpt_alias_is_rejected_offline(no_provider_or_download):
+    assert model_registry.resolve_model_name("chatgpt") is None
+    result = CliRunner().invoke(cli.lmt, ["--model", "chatgpt", "hello"])
+    assert result.exit_code == 2
+    assert "Invalid model name" in result.output
+    with pytest.raises(lib.RequestResolutionError, match="registered model name"):
+        lib.resolve_request(model="chatgpt", prompt="hello")
+    for name in ("gpt-3.5-turbo", "3.5"):
+        assert lib.resolve_request(model=name, prompt="hello").model == "gpt-3.5-turbo"
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -130,6 +142,8 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
         assert model in result.output
     for aliases in ("6-luna, luna", "6.1-sol, sol", "6-astra, astra"):
         assert f"  Aliases: {aliases}\n" in result.output
+    assert "gpt-3.5-turbo\n  Alias: 3.5\n" in result.output
+    assert "chatgpt" not in result.output
     assert "gpt-3.5-turbo-0125" in result.output
     assert "gpt-5.4-pro" not in result.output
     assert "gpt-5.3-codex" not in result.output

@@ -53,6 +53,8 @@ default unless you pass `--reasoning-effort`, including when you select Luna.
 `lmt models` lists the registered Chat Completions models and aliases. Other
 endpoints, including Responses-only Pro and Codex models, and retired models are
 not supported. Library requests also reject known Responses-only Pro snapshots.
+The former `chatgpt` alias for GPT-3.5 has been removed. Use `gpt-3.5-turbo`
+or `3.5` to select that model.
 Model access and availability depend on your OpenAI account. The catalog includes
 GPT-5.5, GPT-5.6 Sol/Terra/Luna, GPT-6 Sol and documented regular-text GPT-5
 snapshots. Use the exact dated ID to select a snapshot. Specialized Search API
