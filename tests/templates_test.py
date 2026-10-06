@@ -1,6 +1,7 @@
 import io
 import sys
 import traceback
+from pathlib import Path
 
 import pytest
 import yaml
@@ -391,3 +392,89 @@ def test_malformed_yaml_traceback_does_not_reveal_content(tmp_path):
     with pytest.raises(TemplateError) as error:
         load_template("bad", tmp_path)
     assert "PRIVATE" not in "".join(traceback.format_exception(error.value))
+
+
+@pytest.mark.parametrize("saved", [True, False], ids=["saved", "unchanged"])
+def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, tmp_path, saved):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    assert not directory.exists()
+    content = "prompt: Translate into French.\n"
+
+    def edit_draft(*, filename):
+        if saved:
+            Path(filename).write_text(content, encoding="UTF-8")
+
+    monkeypatch.setattr(cli.click, "edit", edit_draft)
+    result = CliRunner().invoke(cli.lmt, ["templates", "add", "translate"])
+
+    assert result.exit_code == 0, result.output
+    template_file = directory / "translate.yaml"
+    if saved:
+        assert "created" in result.output
+        assert template_file.read_bytes() == content.encode()
+        assert load_template("translate").prompt == "Translate into French."
+    else:
+        assert "no changes were made" in result.output
+        assert not template_file.exists()
+
+
+@pytest.mark.parametrize("saved", [True, False], ids=["saved", "unchanged"])
+def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, tmp_path, saved):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    directory.mkdir(parents=True)
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    template_file = directory / "translate.yaml"
+    original = "# Café\r\nprompt: Translate into English.\r\n".encode()
+    template_file.write_bytes(original)
+    other = directory / "other.yaml"
+    other_content = b"prompt: Keep this template.\n"
+    other.write_bytes(other_content)
+    content = "prompt: Translate into French.\n"
+
+    def edit_template(*, filename):
+        if saved:
+            Path(filename).write_text(content, encoding="UTF-8")
+
+    monkeypatch.setattr(cli.click, "edit", edit_template)
+    result = CliRunner().invoke(cli.lmt, ["templates", "edit", "translate"])
+
+    assert result.exit_code == 0, result.output
+    assert other.read_bytes() == other_content
+    if saved:
+        assert "was updated" in result.output
+        assert template_file.read_bytes() == content.encode()
+        assert load_template("translate").prompt == "Translate into French."
+    else:
+        assert "No changes were made" in result.output
+        assert template_file.read_bytes() == original
+        assert load_template("translate").prompt == "Translate into English."
+
+
+@pytest.mark.parametrize("confirmed", [True, False], ids=["confirmed", "declined"])
+def test_template_delete_confirmation(no_provider_or_download, monkeypatch, tmp_path, confirmed):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    directory.mkdir(parents=True)
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    monkeypatch.setattr(cli.click, "edit", lambda **kwargs: pytest.fail("unexpected editor"))
+    template_file = directory / "translate.yaml"
+    original = "# Café\r\nprompt: Translate into English.\r\n".encode()
+    template_file.write_bytes(original)
+    other = directory / "other.yaml"
+    other_content = b"prompt: Keep this template.\n"
+    other.write_bytes(other_content)
+
+    result = CliRunner().invoke(
+        cli.lmt, ["templates", "delete", "translate"], input="y\n" if confirmed else "n\n"
+    )
+
+    assert other.read_bytes() == other_content
+    if confirmed:
+        assert result.exit_code == 0, result.output
+        assert "deleted" in result.output
+        assert not template_file.exists()
+    else:
+        assert result.exit_code == 1, result.output
+        assert "Aborted" in result.output
+        assert template_file.read_bytes() == original
+        assert load_template("translate").prompt == "Translate into English."
