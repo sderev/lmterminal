@@ -30,7 +30,6 @@ def test_prompt_help_explains_reasoning_default_and_debug_disclosure():
     "alias, canonical",
     [
         ("gpt-3.5-turbo", "gpt-3.5-turbo"),
-        ("chatgpt", "gpt-3.5-turbo"),
         ("3.5", "gpt-3.5-turbo"),
         ("gpt-4", "gpt-4"),
         ("4", "gpt-4"),

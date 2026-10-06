@@ -81,7 +81,7 @@ MODEL_REGISTRY = {
     # https://developers.openai.com/api/docs/models/gpt-4-turbo
     # Preview inputs are retained without reverification; 32k uses historical evidence.
     "gpt-3.5-turbo": _spec(
-        aliases=("chatgpt", "3.5"),
+        aliases=("3.5",),
         short_input=0.50,
         short_output=1.50,
     ),
