@@ -212,9 +212,15 @@ prompt: Translate into English.
 ```bash
 printf 'Bonjour.' | lmt -t translate "Keep product names unchanged."
 lmt -t translate --text 'Bonjour.' "Keep product names unchanged."
+lmt templates add summarize
 lmt templates edit translate
 lmt templates list
+lmt templates --help
 ```
+
+`lmt templates add` opens the editor selected by `VISUAL` or `EDITOR`; an
+unchanged draft is removed. With shell completion enabled, template names complete
+for `-t` and `templates view`, `edit`, `delete`, and `rename`.
 
 Names are extensionless basenames. Fields: `system`, `prompt` (task instructions),
 `text` (content), `model`, `temperature`, `reasoning_effort`, `request_options`.
