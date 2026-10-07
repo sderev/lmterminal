@@ -5,18 +5,23 @@ import sys
 import click
 from click.core import ParameterSource
 from click_default_group import DefaultGroup
+from rich.console import Console
+from rich.syntax import Syntax
 
+from .code_themes import resolve_code_theme
 from .diagnostics import RequestDiagnostics
 from .lib import (
     DEFAULT_MODEL,
     RequestResolutionError,
     edit_key,
+    get_markdown_code_block_theme,
     prepare_and_generate_response,
     resolve_request,
     set_key,
 )
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
 from .request_options import UNSET, validate_request_options
+from .template_view import serialize_saved_template
 from .templates import (
     DEFAULT_TEMPLATE_CONTENT,
     TemplateError,
@@ -363,12 +368,28 @@ def print_templates_list():
 @click.argument("template", shell_complete=complete_template)
 def view_template(template):
     """
-    View a template.
+    Show saved fields as YAML, without comments or added defaults.
+
+    Any YAML mapping can be inspected; execution still validates template fields.
+    Redirected output is plain YAML. Unreadable files, malformed YAML and non-mappings
+    are errors.
     """
-    template = _template_path(template)
-    if template.exists():
-        with open(template, "r", encoding="UTF-8") as template_file:
-            click.echo(template_file.read())
+    _template_path(template)
+    try:
+        content = serialize_saved_template(template)
+    except TemplateError as error:
+        raise click.ClickException(str(error)) from error
+    if not sys.stdout.isatty():
+        click.echo(content, nl=False)
+        return
+    try:
+        theme = resolve_code_theme(get_markdown_code_block_theme())
+    except ValueError:
+        raise click.ClickException(
+            "Template view code theme is unavailable. Set `code_block_theme` to "
+            "`alabaster` or an installed Pygments style, or redirect stdout for plain YAML."
+        ) from None
+    Console().print(Syntax(content, "yaml", theme=theme, word_wrap=True, padding=0))
 
 
 @templates.command()

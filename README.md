@@ -229,6 +229,14 @@ Both spellings select template management. To send a prompt starting with the wo
 unchanged draft is removed. With shell completion enabled, template names complete
 for `-t` and `view`, `edit`, `delete`, and `rename` under either group spelling.
 
+`lmt templates view translate` shows only saved fields, in file order, with
+multiline text and terminal highlighting using `code_block_theme`. Redirected
+output is plain YAML without wrapping or padding. Parsing removes comments and
+source formatting, preserves values (including nulls), and adds no defaults.
+Any parseable YAML mapping can be inspected, even if its fields would fail
+execution validation. Missing or unreadable files, malformed YAML and non-mapping
+roots (including empty files) fail without printing template contents.
+
 Names are extensionless basenames. Fields: `system`, `prompt` (task instructions),
 `text` (content), `model`, `temperature`, `reasoning_effort`, `request_options`.
 Positional arguments append to template instructions; stdin or literal `--text`
