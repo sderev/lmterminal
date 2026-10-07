@@ -50,7 +50,7 @@ def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path
     result = CliRunner().invoke(cli.lmt, args, input="private-prompt")
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == "private-response"
+    assert result.stdout == "private-response\n"
     assert calls[0]["model"] == "gpt-4o"
     assert calls[0]["stream"] is True
     assert calls[0]["metadata"] == {"secret": "private-option"}

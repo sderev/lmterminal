@@ -301,11 +301,10 @@ def _generate_prepared_response(request, raw, stream, *, diagnostics=None):
             )
 
             has_text = bool(content)
-            # This is temporary to ensure that the last line always ends with a newline
-            # This will be removed when refactored
             if not content.endswith("\n"):
                 content += "\n"
-            #############################
+                if stream and not getattr(sys.stdout, "isatty", lambda: False)():
+                    print("\n", end="", flush=True)
 
             if not stream:
                 if diagnostics and has_text:

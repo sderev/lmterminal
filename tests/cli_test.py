@@ -1,3 +1,5 @@
+import io
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -128,7 +130,7 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
     )
 
     assert result.exit_code == 0, result.output
-    assert result.stdout == ("Hello" if stream else "Hello\n")
+    assert result.stdout == "Hello\n"
     assert calls == [
         {
             "messages": [
@@ -183,7 +185,7 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, mode
         args += ["-o", "stream_options.include_usage=true"]
     result = CliRunner().invoke(cli.lmt, args, input="hi")
     assert result.exit_code == 0, result.output
-    assert result.stdout == ("hello\n" if no_stream else "hello")
+    assert result.stdout == "hello\n"
     call = calls[0]
     assert call["model"] == f"gpt-{model}"
     assert call["reasoning_effort"] == effort
@@ -195,6 +197,70 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, mode
         assert "temperature" not in call
     if not no_stream:
         assert call["stream_options"] == {"include_usage": True}
+
+
+@pytest.mark.parametrize("no_stream", [False, True], ids=["stream", "nonstream"])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        pytest.param("**Hello**", b"**Hello**\n", id="missing-lf"),
+        pytest.param("Hello\n", b"Hello\n", id="one-lf"),
+        pytest.param("Hello\n\n", b"Hello\n\n", id="two-lfs"),
+        pytest.param("Hello \t", b"Hello \t\n", id="whitespace-tail"),
+        pytest.param("", b"\n", id="empty"),
+        pytest.param(None, b"\n", id="tool-only"),
+    ],
+)
+def test_redirected_response_preserves_text_and_final_lf(
+    monkeypatch, tmp_path, no_stream, text, expected
+):
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    tool_calls = [{"type": "function", "function": {"name": "lookup", "arguments": "{}"}}]
+
+    def create(**kwargs):
+        assert kwargs["stream"] is not no_stream
+        message = SimpleNamespace(content=text, tool_calls=tool_calls if text is None else [])
+        if kwargs["stream"]:
+            return iter(
+                [
+                    SimpleNamespace(choices=[SimpleNamespace(delta=message)]),
+                    SimpleNamespace(choices=[]),
+                ]
+            )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    path = tmp_path / "response.txt"
+    with path.open("w", encoding="UTF-8") as output:
+        monkeypatch.setattr(sys, "stdout", output)
+        args = ["--raw", "fixture"] + (["--no-stream"] if no_stream else [])
+        cli.lmt.main(args, standalone_mode=False)
+        # Read without flushing on behalf of the renderer.
+        assert path.read_bytes() == expected
+
+
+def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+
+    def events():
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="partial"))])
+        raise RuntimeError("fixture stream failure")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+    )
+    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    path = tmp_path / "response.txt"
+    with path.open("w", encoding="UTF-8") as output:
+        monkeypatch.setattr(sys, "stdout", output)
+        with pytest.raises(SystemExit) as error:
+            cli.lmt.main(["fixture"], standalone_mode=False)
+        assert error.value.code == 1
+        assert path.read_bytes() == b"partial"
+    assert "fixture stream failure" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

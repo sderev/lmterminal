@@ -114,6 +114,9 @@ In a terminal, run `lmt` without a prompt to enter multiple lines; press Ctrl+D 
 send. `--raw` disables formatting. Streaming to pipes or terminals that cannot
 render interactive Markdown produces plain text, including with `--rich`.
 `--no-stream` waits for the complete response and prints plain text.
+Successful responses redirected to files or pipes end with a newline in either
+stream mode, including with `--raw`. A missing final newline is added without
+trimming whitespace or changing existing trailing newlines.
 Content-free tool-call responses print an empty line; library callers retain the
 raw response payload.
 

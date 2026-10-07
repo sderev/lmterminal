@@ -261,7 +261,7 @@ def test_generate_response_stream_is_visible_before_completion(
     assert response == chunks
     final_output = output.buffer.getvalue().decode("UTF-8")
     if plain:
-        assert final_output == "**Hello**"
+        assert final_output == ("**Hello**" if is_terminal else "**Hello**\n")
     else:
         assert "Hello" in final_output
         assert "**Hello**" not in final_output
