@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .model_registry import get_request_model_spec, resolve_model_name
 
@@ -96,17 +96,56 @@ def prepare_request_controls(model, temperature, reasoning_effort, request_optio
     return controls
 
 
-@dataclass(frozen=True)
+def snapshot_containers(value, active=None):
+    """Copy acyclic mappings, lists and tuples; borrow opaque provider values.
+
+    This intentionally does not deepcopy SDK objects, iterators or other opaque
+    values. Mapping keys (normally strings) are borrowed too.
+    """
+    if not isinstance(value, (Mapping, list, tuple)):
+        return value
+    active = set() if active is None else active
+    identity = id(value)
+    if identity in active:
+        raise ValueError("Request containers must be acyclic.")
+    active.add(identity)
+    try:
+        if isinstance(value, Mapping):
+            return {key: snapshot_containers(item, active) for key, item in value.items()}
+        items = [snapshot_containers(item, active) for item in value]
+        return tuple(items) if isinstance(value, tuple) else items
+    finally:
+        active.remove(identity)
+
+
+@dataclass(frozen=True, init=False)
 class PreparedRequest:
-    """Effective messages, canonical model and validated optional controls."""
+    """Owned container snapshot; public access returns independent container copies.
+
+    Construct with prepare_request/resolve_request to validate controls. Opaque
+    objects remain borrowed: callers must keep them stable through estimation/send.
+    """
 
     model: str
-    messages: object
-    controls: dict
+    _messages: object = field(repr=False)
+    _controls: dict = field(repr=False)
+
+    def __init__(self, model, messages, controls):
+        object.__setattr__(self, "model", model)
+        object.__setattr__(self, "_messages", snapshot_containers(messages))
+        object.__setattr__(self, "_controls", snapshot_containers(controls))
+
+    @property
+    def messages(self):
+        return snapshot_containers(self._messages)
+
+    @property
+    def controls(self):
+        return snapshot_containers(self._controls)
 
 
 def prepare_request(
-    model, messages, temperature=UNSET, reasoning_effort=UNSET, request_options=None
+    model=UNSET, messages=None, temperature=UNSET, reasoning_effort=UNSET, request_options=None
 ):
     """Finalize once before estimation or transport; unknown library models pass through."""
     implicit_model = model is UNSET
@@ -117,5 +156,6 @@ def prepare_request(
     if not isinstance(model, str) or not model:
         raise ValueError("Model must be a nonempty string.")
     model = resolve_model_name(model) or model
-    controls = prepare_request_controls(model, temperature, reasoning_effort, request_options)
+    options = snapshot_containers(request_options)
+    controls = prepare_request_controls(model, temperature, reasoning_effort, options)
     return PreparedRequest(model, messages, controls)

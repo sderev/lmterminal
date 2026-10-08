@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 import click
 from click.core import ParameterSource
@@ -8,19 +9,18 @@ from click_default_group import DefaultGroup
 from rich.console import Console
 from rich.syntax import Syntax
 
+from .cli_output import (
+    code_block_theme,
+    display_debug_information,
+    display_tokens_count_and_cost,
+    execute_request,
+)
 from .code_themes import resolve_code_theme
 from .diagnostics import RequestDiagnostics
-from .lib import (
-    DEFAULT_MODEL,
-    RequestResolutionError,
-    edit_key,
-    get_markdown_code_block_theme,
-    prepare_and_generate_response,
-    resolve_request,
-    set_key,
-)
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
-from .request_options import UNSET, validate_request_options
+from .request_options import DEFAULT_MODEL, UNSET, validate_request_options
+from .resolution import RequestResolutionError, resolve_request
+from .storage import StorageError, load_config, read_api_key, write_key
 from .template_view import serialize_saved_template
 from .templates import (
     DEFAULT_TEMPLATE_CONTENT,
@@ -31,13 +31,29 @@ from .templates import (
 )
 
 
+def _config_directory(ctx=None):
+    """Discover paths once per invocation, including shell completion."""
+    if ctx is None:
+        ctx = click.get_current_context()
+    root = ctx.find_root()
+    if root.obj is None:
+        root.obj = Path.home() / ".config" / "lmt"
+    return root.obj
+
+
+def _template_directory(ctx=None):
+    return _config_directory(ctx) / "templates"
+
+
 def complete_template(ctx, param, incomplete):
-    return [name for name in list_templates() if name.startswith(incomplete)]
+    return [
+        name for name in list_templates(_template_directory(ctx)) if name.startswith(incomplete)
+    ]
 
 
 def _template_path(name):
     try:
-        return template_path(name)
+        return template_path(name, _template_directory())
     except TemplateError as error:
         raise click.UsageError(str(error)) from error
 
@@ -124,7 +140,8 @@ def parse_request_options(ctx, param, values):
 
 @click.group(cls=DefaultGroup, default="prompt", default_if_no_args=True)
 @click.version_option(package_name="lmterminal")
-def lmt():
+@click.pass_context
+def lmt(ctx):
     """
     Talk to ChatGPT.
 
@@ -133,6 +150,7 @@ def lmt():
 
     Documentation: https://github.com/sderev/lmterminal
     """
+    _config_directory()
 
 
 @lmt.command()
@@ -266,6 +284,7 @@ def prompt(
         "temperature": supplied("temperature", temperature),
         "reasoning_effort": supplied("reasoning_effort", reasoning_effort),
         "request_options": request_options,
+        "emoji": emoji,
     }
     if diagnostics:
         diagnostics.mark("request preparation started", level=2)
@@ -273,7 +292,7 @@ def prompt(
         # Conflict and template/control validation must precede any stdin/key access.
         if template is not None and settings["system"] is not UNSET:
             resolve_request(template=template, **settings)
-        stored = load_template(template) if template is not None else None
+        stored = load_template(template, _template_directory()) if template is not None else None
         request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
     except (TemplateError, RequestResolutionError) as error:
         raise click.UsageError(str(error)) from error
@@ -315,13 +334,20 @@ def prompt(
     if sys.stdout.isatty():
         click.echo()
 
-    prepare_and_generate_response(
+    if diagnostics:
+        diagnostics.request_prepared(request, not no_stream)
+    if debug:
+        display_debug_information(
+            request.messages, request.model, request.controls.get("temperature")
+        )
+    if tokens:
+        ctx.exit(display_tokens_count_and_cost(request))
+    execute_request(
         request,
-        emoji=emoji,
-        tokens=tokens,
-        no_stream=no_stream,
+        config_path=_config_directory() / "config.json",
+        key_path=_config_directory() / "keys.json",
+        stream=not no_stream,
         raw=raw,
-        debug=debug,
         diagnostics=diagnostics,
     )
 
@@ -359,7 +385,7 @@ def print_templates_list():
     """
     List the available templates.
     """
-    templates_names_list = list_templates()
+    templates_names_list = list_templates(_template_directory())
     if templates_names_list:
         click.echo("\n".join(templates_names_list))
 
@@ -376,14 +402,16 @@ def view_template(template):
     """
     _template_path(template)
     try:
-        content = serialize_saved_template(template)
+        content = serialize_saved_template(template, _template_directory())
     except TemplateError as error:
         raise click.ClickException(str(error)) from error
     if not sys.stdout.isatty():
         click.echo(content, nl=False)
         return
     try:
-        theme = resolve_code_theme(get_markdown_code_block_theme())
+        theme = resolve_code_theme(
+            code_block_theme(load_config(_config_directory() / "config.json"))
+        )
     except ValueError:
         raise click.ClickException(
             "Template view code theme is unavailable. Set `code_block_theme` to "
@@ -508,7 +536,7 @@ def edit_api_key():
     """
     Edit the OpenAI API key.
     """
-    edit_key()
+    _manage_key(edit=True)
 
 
 @key.command(name="set")
@@ -516,4 +544,29 @@ def set_api_key():
     """
     Set the OpenAI API key.
     """
-    set_key()
+    _manage_key(edit=False)
+
+
+def _manage_key(*, edit):
+    path = _config_directory() / "keys.json"
+    try:
+        existing = read_api_key(path)
+        if existing and not edit:
+            click.secho("Error: ", fg="red", nl=False)
+            click.echo("API key already exists.")
+            click.echo(f"Use `{click.style('lmt key edit', fg='blue')}` to edit it.")
+            return
+        if not existing and edit:
+            click.secho("Error: ", fg="red", nl=False)
+            click.echo("API key does not exist.")
+            click.echo("You will now be prompted to add it.\n")
+        key = click.prompt("Your OpenAI API key", hide_input=True)
+        if key == existing:
+            click.echo("No changes were made.")
+        else:
+            write_key(path, key)
+            click.secho("Success!", fg="green", nl=False)
+            click.echo(" API key was updated." if existing else " API key added.")
+        click.echo(f"\nThe API key is stored in {path}.")
+    except (StorageError, OSError) as error:
+        raise click.ClickException(str(error)) from error

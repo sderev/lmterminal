@@ -7,9 +7,9 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from lmterminal import cli, lib, templates
-from lmterminal.lib import RequestResolutionError, SystemTemplateConflict, resolve_request
+from lmterminal import cli, cli_output, templates
 from lmterminal.request_options import DEFAULT_MODEL
+from lmterminal.resolution import RequestResolutionError, SystemTemplateConflict, resolve_request
 from lmterminal.templates import Template, TemplateError, load_template
 
 
@@ -35,8 +35,8 @@ from lmterminal.templates import Template, TemplateError, load_template
 def test_cli_library_exact_messages(monkeypatch, tmp_path, name, task, content, extra, expected):
     data = {"system": "Reply concisely.", "prompt": task, "model": "4o", "temperature": 0.7}
     (tmp_path / f"{name}.yaml").write_text(yaml.safe_dump(data), encoding="UTF-8")
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
-    loaded = load_template(name)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    loaded = load_template(name, tmp_path)
     request = resolve_request(template=loaded, prompt=extra, text=content)
     assert request == resolve_request(template=Template(**data), prompt=extra, text=content)
     assert request.messages == [
@@ -46,8 +46,8 @@ def test_cli_library_exact_messages(monkeypatch, tmp_path, name, task, content, 
     assert request.controls == {"temperature": 0.7}
     captured = []
     monkeypatch.setattr(
-        lib,
-        "_generate_prepared_response",
+        cli,
+        "execute_request",
         lambda request, *args, **kwargs: captured.append(request),
     )
     runner = CliRunner()
@@ -110,16 +110,14 @@ def test_catalog_temperature_provenance_matches_cli(
 ):
     data = {"prompt": "Task", **settings}
     (tmp_path / "fixture.yaml").write_text(yaml.safe_dump(data), encoding="UTF-8")
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     overrides = {"reasoning_effort": "none", "temperature": 0} if args else {}
-    request = resolve_request(template=load_template("fixture"), **overrides)
+    request = resolve_request(template=load_template("fixture", tmp_path), **overrides)
     assert request == resolve_request(template=Template(**data), **overrides)
     assert request.model == model
     assert request.controls == controls
     captured = []
-    monkeypatch.setattr(
-        cli, "prepare_and_generate_response", lambda request, **kw: captured.append(request)
-    )
+    monkeypatch.setattr(cli, "execute_request", lambda request, **kw: captured.append(request))
     result = CliRunner().invoke(cli.lmt, ["-t", "fixture", *args])
     assert result.exit_code == 0, result.output
     assert captured == [request]
@@ -140,8 +138,8 @@ def test_explicit_none_temperature_overrides_stored_incompatible_value():
 @pytest.mark.parametrize("setting", ["temperature: 1", "request_options: {top_p: 0.9}"])
 def test_template_sampling_validation_before_stdin_and_key(monkeypatch, tmp_path, setting):
     (tmp_path / "fixture.yaml").write_text(f"model: luna\n{setting}\n", encoding="UTF-8")
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("key read"))
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: pytest.fail("key read"))
     runner = CliRunner()
     with runner.isolation():
         monkeypatch.setattr(sys, "stdin", UnreadableStdin())
@@ -179,8 +177,8 @@ def test_cli_errors_before_stdin_and_key(monkeypatch, tmp_path, failure):
         (tmp_path / "fixture.yaml").write_text(
             "request_options: {extra_body: {model: PRIVATE}}\n", encoding="UTF-8"
         )
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("key read"))
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: pytest.fail("key read"))
     runner = CliRunner()
     with runner.isolation():
         monkeypatch.setattr(sys, "stdin", UnreadableStdin())
@@ -194,11 +192,9 @@ def test_cli_errors_before_stdin_and_key(monkeypatch, tmp_path, failure):
 
 def test_template_task_does_not_read_interactive_stdin(monkeypatch, tmp_path):
     (tmp_path / "task.yaml").write_text("prompt: Task\n", encoding="UTF-8")
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     requests = []
-    monkeypatch.setattr(
-        cli, "prepare_and_generate_response", lambda request, **kw: requests.append(request)
-    )
+    monkeypatch.setattr(cli, "execute_request", lambda request, **kw: requests.append(request))
     runner = CliRunner()
     with runner.isolation():
         monkeypatch.setattr(sys, "stdin", UnreadableStdin())
@@ -207,7 +203,7 @@ def test_template_task_does_not_read_interactive_stdin(monkeypatch, tmp_path):
 
 
 def test_literal_text_and_stdin_conflict_before_key(monkeypatch):
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("key read"))
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: pytest.fail("key read"))
     result = CliRunner().invoke(cli.lmt, ["--text", "literal"], input="piped")
     assert result.exit_code == 2
     assert "nonempty stdin" in result.output
@@ -257,7 +253,7 @@ def test_request_options_use_shared_reserved_validation():
 
 
 def test_template_management_refuses_overwrite_and_renames_basename(monkeypatch, tmp_path):
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda ctx=None: tmp_path)
     monkeypatch.setattr(cli.click, "edit", lambda **kwargs: pytest.fail("existing template edited"))
     old = tmp_path / "old.yaml"
     old.write_text("prompt: Keep\n", encoding="UTF-8")
@@ -276,22 +272,22 @@ def test_template_management_refuses_overwrite_and_renames_basename(monkeypatch,
     assert (tmp_path / "new.yaml").read_text() == "prompt: Keep\n"
     (tmp_path / "ignore.txt").touch()
     (tmp_path / "directory.yaml").mkdir()
-    assert templates.list_templates() == ["new", "occupied"]
+    assert templates.list_templates(tmp_path) == ["new", "occupied"]
     assert cli.complete_template(None, None, "n") == ["new"]
     with pytest.raises(TemplateError):
-        templates.template_path("../outside")
+        templates.template_path("../outside", tmp_path)
     with pytest.raises(TemplateError):
-        templates.template_path("new.yaml")
+        templates.template_path("new.yaml", tmp_path)
 
 
 @pytest.mark.parametrize("group_name", ["template", "templates"])
 def test_template_management_alias_routes_list_and_view(
     no_provider_or_download, monkeypatch, tmp_path, group_name
 ):
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     monkeypatch.setattr(
         cli,
-        "prepare_and_generate_response",
+        "execute_request",
         lambda *args, **kwargs: pytest.fail("Template management must not generate a response"),
     )
     (tmp_path / "translate.yaml").write_text("prompt: Translate\n", encoding="UTF-8")
@@ -329,9 +325,7 @@ def test_template_management_alias_in_root_help(no_provider_or_download):
 
 def test_explicit_prompt_accepts_template_command_word(no_provider_or_download, monkeypatch):
     requests = []
-    monkeypatch.setattr(
-        cli, "prepare_and_generate_response", lambda request, **kwargs: requests.append(request)
-    )
+    monkeypatch.setattr(cli, "execute_request", lambda request, **kwargs: requests.append(request))
     result = CliRunner().invoke(cli.lmt, ["prompt", "template", "list"])
     assert result.exit_code == 0, result.output
     assert len(requests) == 1
@@ -339,13 +333,12 @@ def test_explicit_prompt_accepts_template_command_word(no_provider_or_download, 
 
 
 @pytest.mark.parametrize("group_name", ["template", "templates"])
-def test_template_management_alias_bash_completion(
-    no_provider_or_download, monkeypatch, tmp_path, group_name
-):
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+def test_template_management_alias_bash_completion(no_provider_or_download, tmp_path, group_name):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    directory.mkdir(parents=True)
     for name in ("translate.yaml", "transcribe.yaml", "summarize.yaml", "trans.txt"):
-        (tmp_path / name).write_text("prompt: Task\n", encoding="UTF-8")
-    (tmp_path / "trans-directory.yaml").mkdir()
+        (directory / name).write_text("prompt: Task\n", encoding="UTF-8")
+    (directory / "trans-directory.yaml").mkdir()
     runner = CliRunner()
     for words, expected in [
         (f"lmt {group_name} ", ["add", "delete", "edit", "list", "rename", "view"]),
@@ -368,23 +361,39 @@ def test_template_management_alias_bash_completion(
         assert result.output.splitlines() == [f"plain,{value}" for value in expected]
 
 
-@pytest.mark.parametrize("command_name", ["view", "edit", "delete", "rename"])
-def test_template_management_argument_completion(
-    no_provider_or_download, monkeypatch, tmp_path, command_name
-):
+@pytest.mark.parametrize("command", ["lmt", "lmt prompt"])
+def test_prompt_template_bash_completion(no_provider_or_download, tmp_path, command):
     directory = tmp_path / ".config" / "lmt" / "templates"
     directory.mkdir(parents=True)
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    (directory / "translate.yaml").write_text("prompt: Task\n", encoding="UTF-8")
+    result = CliRunner().invoke(
+        cli.lmt,
+        [],
+        prog_name="lmt",
+        env={
+            "_LMT_COMPLETE": "bash_complete",
+            "COMP_WORDS": f"{command} -t trans",
+            "COMP_CWORD": str(len(command.split()) + 1),
+        },
+    )
+    assert result.exit_code == 0, result.output
+    assert result.output == "plain,translate\n"
+
+
+@pytest.mark.parametrize("command_name", ["view", "edit", "delete", "rename"])
+def test_template_management_argument_completion(no_provider_or_download, tmp_path, command_name):
+    directory = tmp_path / ".config" / "lmt" / "templates"
+    directory.mkdir(parents=True)
     for name in ("translate.yaml", "transcribe.yaml", "summarize.yaml", "trans.txt", "trans.yml"):
         (directory / name).write_text("prompt: Task\n", encoding="UTF-8")
     (directory / "trans-directory.yaml").mkdir()
     command = cli.templates.commands[command_name]
     argument = next(param for param in command.params if param.name == "template")
-    with cli.click.Context(command) as ctx:
-        assert [item.value for item in argument.shell_complete(ctx, "trans")] == [
-            "transcribe",
-            "translate",
-        ]
+    ctx = cli.click.Context(command)
+    assert [item.value for item in argument.shell_complete(ctx, "trans")] == [
+        "transcribe",
+        "translate",
+    ]
 
 
 def test_malformed_yaml_traceback_does_not_reveal_content(tmp_path):
@@ -397,7 +406,7 @@ def test_malformed_yaml_traceback_does_not_reveal_content(tmp_path):
 @pytest.mark.parametrize("saved", [True, False], ids=["saved", "unchanged"])
 def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, tmp_path, saved):
     directory = tmp_path / ".config" / "lmt" / "templates"
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    monkeypatch.setattr(cli, "_template_directory", lambda: directory)
     assert not directory.exists()
     content = "prompt: Translate into French.\n"
 
@@ -413,7 +422,7 @@ def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, t
     if saved:
         assert "created" in result.output
         assert template_file.read_bytes() == content.encode()
-        assert load_template("translate").prompt == "Translate into French."
+        assert load_template("translate", directory).prompt == "Translate into French."
     else:
         assert "no changes were made" in result.output
         assert not template_file.exists()
@@ -423,7 +432,7 @@ def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, t
 def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, tmp_path, saved):
     directory = tmp_path / ".config" / "lmt" / "templates"
     directory.mkdir(parents=True)
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    monkeypatch.setattr(cli, "_template_directory", lambda: directory)
     template_file = directory / "translate.yaml"
     original = "# Café\r\nprompt: Translate into English.\r\n".encode()
     template_file.write_bytes(original)
@@ -444,18 +453,18 @@ def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, 
     if saved:
         assert "was updated" in result.output
         assert template_file.read_bytes() == content.encode()
-        assert load_template("translate").prompt == "Translate into French."
+        assert load_template("translate", directory).prompt == "Translate into French."
     else:
         assert "No changes were made" in result.output
         assert template_file.read_bytes() == original
-        assert load_template("translate").prompt == "Translate into English."
+        assert load_template("translate", directory).prompt == "Translate into English."
 
 
 @pytest.mark.parametrize("confirmed", [True, False], ids=["confirmed", "declined"])
 def test_template_delete_confirmation(no_provider_or_download, monkeypatch, tmp_path, confirmed):
     directory = tmp_path / ".config" / "lmt" / "templates"
     directory.mkdir(parents=True)
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", directory)
+    monkeypatch.setattr(cli, "_template_directory", lambda: directory)
     monkeypatch.setattr(cli.click, "edit", lambda **kwargs: pytest.fail("unexpected editor"))
     template_file = directory / "translate.yaml"
     original = "# Café\r\nprompt: Translate into English.\r\n".encode()
@@ -477,4 +486,63 @@ def test_template_delete_confirmation(no_provider_or_download, monkeypatch, tmp_
         assert result.exit_code == 1, result.output
         assert "Aborted" in result.output
         assert template_file.read_bytes() == original
-        assert load_template("translate").prompt == "Translate into English."
+        assert load_template("translate", directory).prompt == "Translate into English."
+
+
+@pytest.mark.parametrize("timestamp", ["2026-13-01", "2026-10-07T25:00:00Z"])
+def test_execution_yaml_constructor_errors_are_normalized(monkeypatch, tmp_path, timestamp):
+    (tmp_path / "bad.yaml").write_text(f"prompt: {timestamp}\ntext: SYNTHETIC\n")
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    with pytest.raises(TemplateError, match="contains invalid YAML"):
+        load_template("bad", tmp_path)
+    with CliRunner().isolation():
+        monkeypatch.setattr(sys, "stdin", UnreadableStdin())
+        with pytest.raises(cli.click.UsageError, match="contains invalid YAML") as error:
+            cli.lmt.main(["-t", "bad"], standalone_mode=False)
+    assert "SYNTHETIC" not in str(error.value)
+
+
+@pytest.mark.parametrize("model", ["o1", "o1-2024-12-17", "o3"])
+def test_composed_selected_model_message_policy_leaves_raw_roles_untouched(model):
+    from lmterminal.request_options import prepare_request
+
+    composed = resolve_request(model=model, system="System", prompt="Task", emoji=True)
+    raw_messages = [{"role": "system", "content": "System"}, {"role": "user", "content": "Task"}]
+    raw = prepare_request(model, raw_messages)
+    assert raw.messages == raw_messages
+    if model.startswith("o1"):
+        assert composed.messages == [{"role": "user", "content": "Task"}]
+    else:
+        assert composed.messages[0]["content"].startswith("System. Add plenty")
+        assert composed.messages[1] == raw_messages[1]
+
+
+def test_resolution_import_and_execution_need_no_application_resources():
+    import subprocess
+
+    source = """
+import importlib.abc
+import pathlib
+import socket
+import sys
+
+def forbidden(*args, **kwargs):
+    raise AssertionError("No resources during resolution")
+
+class BoundaryGuard(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, *args):
+        assert fullname.split('.')[0] not in {'click', 'rich', 'openai'}
+        assert fullname not in {'lmterminal.cli', 'lmterminal.cli_output', 'lmterminal.gpt_integration', 'lmterminal.storage'}
+
+sys.meta_path.insert(0, BoundaryGuard())
+pathlib.Path.home = forbidden
+pathlib.Path.read_text = forbidden
+socket.socket.connect = forbidden
+from lmterminal.resolution import resolve_request
+from lmterminal.templates import Template
+assert resolve_request(template=Template(prompt="Task"), text="Content").messages[-1]['content'] == "Content\\n___\\nTask"
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", source], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr

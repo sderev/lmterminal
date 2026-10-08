@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -6,7 +7,7 @@ import pytest
 import tiktoken.load
 from click.testing import CliRunner
 
-from lmterminal import cli, estimation, gpt_integration, lib
+from lmterminal import cli, cli_output, estimation, resolution
 from lmterminal.request_options import prepare_request
 
 
@@ -55,7 +56,7 @@ def real_encoder(tokenizer_cache):
 
 
 def test_real_text_oracles_and_literal_cli(real_encoder):
-    request = prepare_request("5-nano", gpt_integration.format_prompt("", "hello"))
+    request = resolution.resolve_request(model="5-nano", prompt="hello")
     result = estimation.estimate_request(request)
     assert result.message_tokens == result.input_tokens == 12
     assert result.encoding == "o200k_base"
@@ -101,7 +102,7 @@ def test_cli_estimate_colors_and_plain_output(monkeypatch, scope):
         pricing_context="short" if scope == "full" else None,
         warnings=("Option `tools` is not counted locally.",) if scope == "partial" else (),
     )
-    monkeypatch.setattr(lib, "estimate_request", lambda _: estimate)
+    monkeypatch.setattr(cli_output, "estimate_request", lambda _: estimate)
     runner = CliRunner()
     colored = runner.invoke(cli.lmt, ["--tokens"], input="hello", color=True)
     plain = runner.invoke(cli.lmt, ["--tokens"], input="hello")
@@ -236,11 +237,10 @@ def test_implicit_luna_estimate_has_no_tokenizer_fallback(monkeypatch):
 @pytest.mark.parametrize("template_model", ["gpt-5.4-pro", "unknown"])
 @pytest.mark.parametrize("tokens", [False, True])
 def test_invalid_template_model_before_key(monkeypatch, tmp_path, template_model, tokens):
-    from lmterminal import templates
 
     (tmp_path / "fixture.yaml").write_text(f"model: {template_model}\n", encoding="UTF-8")
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("key read"))
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: pytest.fail("key read"))
     result = CliRunner().invoke(
         cli.lmt, ["-t", "fixture"] + (["--tokens"] if tokens else []), input="hi"
     )
@@ -252,12 +252,11 @@ def test_invalid_template_model_before_key(monkeypatch, tmp_path, template_model
 def test_estimate_and_transport_receive_same_prepared_values(
     monkeypatch, tmp_path, fake_encoder, model, expected_model
 ):
-    from lmterminal import templates
 
     (tmp_path / "fixture.yaml").write_text(
         'system: "Template system."\nprompt: "Prefix:"\nmodel: "4o"\n', encoding="UTF-8"
     )
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     requests = []
     estimate = estimation.estimate_request
 
@@ -265,14 +264,14 @@ def test_estimate_and_transport_receive_same_prepared_values(
         requests.append(request)
         return estimate(request)
 
-    monkeypatch.setattr(lib, "estimate_request", capture)
+    monkeypatch.setattr(cli_output, "estimate_request", capture)
     args = ["-t", "fixture", "--emoji", "-o", "max_completion_tokens=100", "Summarize"]
     if model:
         args += ["-m", model]
     runner = CliRunner()
     result = runner.invoke(cli.lmt, args + ["--tokens"], input="stdin text")
     assert result.exit_code == 0, result.output
-    monkeypatch.setattr(lib, "get_api_key", lambda: "fixture-key")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "fixture-key")
     calls = []
 
     def create(**kwargs):
@@ -280,12 +279,12 @@ def test_estimate_and_transport_receive_same_prepared_values(
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     result = runner.invoke(cli.lmt, args + ["--no-stream"], input="stdin text")
     assert result.exit_code == 0, result.output
     prepared = requests[0]
     assert prepared.model == expected_model
-    assert prepared.messages[0]["content"] == lib.add_emoji("Template system.")
+    assert prepared.messages[0]["content"] == resolution.add_emoji("Template system.")
     assert prepared.messages[1]["content"] == "stdin text\n___\nPrefix:\n\nSummarize"
     assert prepared.controls == {"temperature": 1, "max_completion_tokens": 100}
     assert calls == [

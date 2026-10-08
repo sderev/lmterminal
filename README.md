@@ -29,9 +29,10 @@ your input. Other provider entries are preserved when changing OpenAI, but only
 OpenAI requests are supported. The file must contain a JSON object with string
 values; a missing or empty OpenAI value means no OpenAI key is set.
 
-New key files start as `{}` with owner-only permissions (`0600`); setting or
-changing a key applies `0600` before writing. Reading an existing key or leaving
-it unchanged does not change its permissions.
+Reading a missing key creates no file. Missing-key errors go to stderr, leaving
+redirected response files empty. Setting or changing a key creates the file with
+owner-only permissions (`0600`) and applies `0600` before replacing stored values.
+Reading an existing key or leaving it unchanged does not change its permissions.
 
 This storage change requires reconfiguration: run `lmt key set` again after
 upgrading. Legacy `key.env` and `API_keys.json` files are neither read nor migrated.
@@ -256,37 +257,87 @@ object. Any supplied `--system`, including an empty value, conflicts with
 `--template`, even when that template has no system field.
 
 Migrate old `user` fields to `prompt` for instructions or `text` for content;
-`user` is rejected. Library callers use the same offline resolver:
+`user` is rejected. Execution accepts empty YAML as an empty template; inspection
+requires a saved mapping. Invalid YAML constructors produce content-free errors.
+
+## Library requests
+
+Compose a request without configuration discovery, keys, terminal output or
+provider access. Load a named template from an explicit directory, or construct
+an in-memory `Template`:
 
 ```python
-from lmterminal.lib import resolve_request
+from pathlib import Path
+
+from lmterminal.resolution import resolve_request
 from lmterminal.templates import load_template
 
 request = resolve_request(
-    template=load_template("translate"),
+    template=load_template("translate", Path("my-templates")),
     text="Bonjour.",
     prompt="Keep product names unchanged.",
 )
 ```
 
-`load_template` returns a validated `Template` and raises `TemplateError` for
-name/file/schema errors. `resolve_request` also accepts a template name or an
-in-memory `Template`; it raises `RequestResolutionError` for invocation/control
-errors, including `SystemTemplateConflict` for any explicit `system` with a
-template (`""` and `None` included). No key or provider access occurs during
-resolution. Use the returned `PreparedRequest` with `estimate_request` or
-`gpt_integration.send_prepared_request(api_key, request, stream=False)`.
-Omitted controls inherit; explicit library `temperature=None` or
-`reasoning_effort=None` omits that control. The previous template composition
-helpers are replaced by this API; `prepare_and_generate_response` now takes a
-prepared request plus keyword output flags.
+`load_template(name, directory)` raises `TemplateError` for name/file/schema
+errors. `resolve_request` accepts a `Template` or `None`, requires a registered
+model, and raises `RequestResolutionError` for invocation/control errors.
+`SystemTemplateConflict` covers any explicit `system` with a template, including
+`""` and `None`. Omitted controls inherit; explicit `temperature=None` or
+`reasoning_effort=None` omits that control. `emoji=True` is applied during
+composition, before estimation or sending. The legacy composed o1 policy omits
+the system message when an o1 model is selected; raw-message preparation retains
+caller-supplied roles. This preserves existing behavior, not a capability claim.
+
+For caller-supplied Chat Completions messages, use
+`prepare_request(messages=messages, model=...)` from `lmterminal.request_options`.
+It shares control validation and alias resolution but passes unknown model names
+to the provider; known unsupported endpoints still fail. Omitted model and effort
+use Luna/none. An explicit model keeps its provider default; explicit effort
+`None` omits that field.
+
+`PreparedRequest` owns snapshots of acyclic mappings, lists and tuples. Public
+`messages` and `controls` access returns container copies, so mutating the source
+or a returned container cannot change the prepared request. Mappings become dicts;
+list/tuple shape is retained. Cycles are rejected. Opaque values (including SDK
+objects, iterators and mapping keys) remain borrowed and must be kept stable by
+the caller. They are not deep-copied. Use the preparer/resolver to validate a
+request; private fields are implementation details.
+
+Send with a client owned by your application (the following performs a provider
+request and requires your application's key):
+
+```python
+from openai import OpenAI
+from lmterminal.gpt_integration import send_prepared_request
+
+with OpenAI(api_key=your_api_key) as client:
+    text, elapsed_seconds, raw_response = send_prepared_request(
+        client, request, stream=True, on_text=lambda chunk: print(chunk, end="", flush=True)
+    )
+```
+
+Transport returns unmodified text and the raw SDK response (or collected stream
+events), raises errors, and neither prints nor exits. The optional `on_text`
+callback receives each nonempty text chunk before the next streaming event;
+without it transport stays silent. Nonstream responses return text without
+calling `on_text`. Callers close/reuse clients themselves. `n` and `stop` remain
+explicit transport keywords; the returned text follows the first choice.
+The CLI owns formatting, error messages, successful final newlines and client
+closure. Optional `diagnostics` is an explicit observer; CLI verbosity supplies
+one that writes metadata to stderr.
+
+Breaking API changes: `lmterminal.lib`, `generate_response`,
+`prepare_and_generate_response`, `chatgpt_request` and `format_prompt` are removed.
+Import composition from `lmterminal.resolution` and send prepared values through
+`send_prepared_request(client, request, ...)`; replace `update_markdown_stream`
+with `on_text`. Template path/list/load and saved-template serialization functions
+now require an explicit directory. Storage helpers in `lmterminal.storage` take
+explicit paths (`load_config`, `read_api_key`, `write_key`) and raise
+`StorageError` or filesystem errors without printing. No compatibility wrappers
+or automatic personal configuration are provided to library callers.
 
 ## Library input estimates
-
-`lib.generate_response` and `gpt_integration.chatgpt_request` use the same
-Luna/`none` default when both model and effort are omitted. Passing a model
-preserves its provider effort default; passing `reasoning_effort=None` explicitly
-omits that request field. Other explicit controls remain subject to model validation.
 
 Use `lmterminal.request_options.prepare_request(model, messages, ...)` followed by
 `lmterminal.estimation.estimate_request(request)`. The `InputEstimate` result
@@ -299,8 +350,8 @@ of each string value. Supported message fields are `role`, `content`, and option
 version and method are included in the result.
 
 This replaces the token/count/cost helpers previously in `gpt_integration`.
-Transport helpers retain unknown-model pass-through; estimation never substitutes
-an unrelated tokenizer or guesses an unknown price.
+Raw-message preparation retains unknown-model pass-through; estimation never
+substitutes an unrelated tokenizer or guesses an unknown price.
 
 ## Colors
 
@@ -334,12 +385,35 @@ uv run --locked --group dev pytest tests/tokenizer_test.py tests/estimation_test
 gate
 ```
 
-Tests copy these assets into an isolated cache and block downloads, key access
-and provider clients. Both vocabularies have fixed token-count oracles; every
-registered Chat Completions model and alias has an independent resolver
+Offline tests isolate HOME/config before application imports and block network
+access and real provider clients. Encoder tests copy these public assets into an
+isolated cache and also forbid credential access. Both vocabularies have fixed
+token-count oracles; every registered Chat Completions model and alias has an independent resolver
 expectation. CI provisions the assets for each Python version and fails if they
 are absent or invalid. Local runs without `LMT_TEST_TIKTOKEN_CACHE` skip the
 vocabulary checks. Live API tests remain opt-in with `--run-live`.
+
+For an offline CLI walkthrough, `tests/manual_cli.py` supplies a fake client,
+a temporary HOME, `translate` and `sparse` templates, and Alabaster colors. Its
+default response echoes the composed user message so precedence is inspectable:
+
+```bash
+printf 'Bonjour.' | uv run python tests/manual_cli.py -t translate 'Keep names.'
+uv run python tests/manual_cli.py --raw 'Hello' > response.txt
+uv run python tests/manual_cli.py --no-stream 'Hello'
+uv run python tests/manual_cli.py --fixture partial-failure --raw 'Hello' > partial.txt
+uv run python tests/manual_cli.py --fixture markdown 'Hello'
+uv run python tests/manual_cli.py templates view sparse
+uv run python tests/manual_cli.py --fixture missing-key --raw 'Hello'
+```
+
+Expect content, `___`, then template/task instructions in the first command;
+`Hello` plus a final LF in `response.txt` and no-stream output; nonzero exit with
+exactly `partial` (no LF) in `partial.txt` on failure; colored fenced and inline
+code in an interactive terminal; only the two stored fields for `sparse`; and a
+stderr-only missing-key error. These commands never call a provider. The automated
+counterparts live in `templates_test.py`, `cli_test.py`, `cli_output_test.py`,
+`template_view_test.py` and `keys_test.py`; visual inspection remains a manual step.
 
 ## License
 
