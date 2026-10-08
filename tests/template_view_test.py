@@ -9,13 +9,13 @@ from click.testing import CliRunner
 from pygments.token import Keyword
 from rich.console import Console
 
-from lmterminal import cli, templates
+from lmterminal import cli
 from lmterminal.templates import TemplateError, load_template
 
 
 @pytest.fixture(autouse=True)
 def isolated_view(no_provider_or_download, monkeypatch, tmp_path):
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
 
 
 def test_saved_mapping_output_preserves_values_and_order(monkeypatch, tmp_path):
@@ -38,9 +38,7 @@ request_options:
 """
     path = tmp_path / "demo.yaml"
     path.write_text(source, encoding="UTF-8")
-    monkeypatch.setattr(
-        cli, "get_markdown_code_block_theme", lambda: pytest.fail("plain output read theme")
-    )
+    monkeypatch.setattr(cli, "load_config", lambda _path: pytest.fail("plain output read theme"))
     result = CliRunner().invoke(cli.lmt, ["templates", "view", "demo"], terminal_width=20)
     assert result.exit_code == 0, result.output
     expected = yaml.safe_load(source)
@@ -95,7 +93,7 @@ def test_sparse_null_and_invalid_schema_mappings(tmp_path, source, expected):
     assert list(yaml.safe_load(result.stdout)) == list(expected)
     if "user" in expected:
         with pytest.raises(TemplateError, match="replace `user`"):
-            load_template("demo")
+            load_template("demo", tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -157,11 +155,14 @@ def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, theme_name):
 
     monkeypatch.setattr(cli, "resolve_code_theme", capture_theme)
     output = io.StringIO()
-    console = Console(file=output, force_terminal=True, color_system="truecolor", width=80)
+    console = Console(
+        file=output, force_terminal=True, color_system="truecolor", no_color=False, width=80
+    )
     monkeypatch.setattr(cli, "Console", lambda: console)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
     if theme_name == "alabaster":
-        cli.view_template.callback("demo")
+        with cli.lmt.make_context("lmt", []):
+            cli.view_template.callback("demo")
         assert captured[0][0] == "alabaster"
         assert captured[0][1].get_style_for_token(Keyword).color.triplet == (122, 62, 157)
         rendered = output.getvalue()
@@ -169,7 +170,10 @@ def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, theme_name):
         assert "[bold]literal[/bold]" in cli.click.unstyle(rendered)
         assert cli.click.unstyle(rendered).splitlines()[0].startswith("prompt:")
     else:
-        with pytest.raises(cli.click.ClickException, match="theme is unavailable") as error:
+        with (
+            pytest.raises(cli.click.ClickException, match="theme is unavailable") as error,
+            cli.lmt.make_context("lmt", []),
+        ):
             cli.view_template.callback("demo")
         assert "redirect stdout" in str(error.value)
         assert output.getvalue() == ""

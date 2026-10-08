@@ -1,12 +1,14 @@
 import io
 import sys
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
 from click.exceptions import BadParameter
 from click.testing import CliRunner
 
-from lmterminal import cli, lib
+from lmterminal import cli, cli_output
+from lmterminal.request_options import DEFAULT_MODEL, prepare_request
 
 
 def test_top_level_help_points_to_prompt_controls():
@@ -109,8 +111,7 @@ def test_validate_temperature_invalid(value):
     ],
 )
 def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expected_prompt, stream):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
-    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "config.json")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     calls = []
 
     def fake_create(**kwargs):
@@ -123,7 +124,7 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _api_key: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
 
     result = CliRunner().invoke(
         cli.lmt, args, input="piped input\n", env={"TERM": "xterm", "FORCE_COLOR": "1"}
@@ -137,7 +138,7 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
                 {"role": "system", "content": ""},
                 {"role": "user", "content": expected_prompt},
             ],
-            "model": lib.DEFAULT_MODEL,
+            "model": DEFAULT_MODEL,
             "reasoning_effort": "none",
             "temperature": 1,
             "n": 1,
@@ -150,8 +151,7 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
 @pytest.mark.parametrize("no_stream", [False, True])
 @pytest.mark.parametrize("model, effort", [("5.4", "high"), ("6-luna", "none"), ("6.1-sol", "max")])
 def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, model, effort):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
-    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "config.json")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     calls = []
 
     def fake_create(**kwargs):
@@ -168,7 +168,7 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, mode
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     args = command + [
         "-m",
         model,
@@ -214,7 +214,7 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, mode
 def test_redirected_response_preserves_text_and_final_lf(
     monkeypatch, tmp_path, no_stream, text, expected
 ):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     tool_calls = [{"type": "function", "function": {"name": "lookup", "arguments": "{}"}}]
 
     def create(**kwargs):
@@ -230,7 +230,7 @@ def test_redirected_response_preserves_text_and_final_lf(
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     path = tmp_path / "response.txt"
     with path.open("w", encoding="UTF-8") as output:
@@ -242,7 +242,7 @@ def test_redirected_response_preserves_text_and_final_lf(
 
 
 def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
 
     def events():
         yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="partial"))])
@@ -251,7 +251,7 @@ def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, ca
     client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
     )
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     path = tmp_path / "response.txt"
     with path.open("w", encoding="UTF-8") as output:
@@ -276,7 +276,9 @@ def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, ca
     ],
 )
 def test_option_errors_are_cli_errors(monkeypatch, option, message):
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    monkeypatch.setattr(
+        cli_output, "read_api_key", lambda _path: pytest.fail("Must not read a key")
+    )
     result = CliRunner().invoke(cli.lmt, ["-o", option], input="hi")
     assert result.exit_code == 2
     assert message in result.output
@@ -284,7 +286,9 @@ def test_option_errors_are_cli_errors(monkeypatch, option, message):
 
 @pytest.mark.parametrize("temperature", ["0.3", "1"])
 def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch, temperature):
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    monkeypatch.setattr(
+        cli_output, "read_api_key", lambda _path: pytest.fail("Must not read a key")
+    )
     result = CliRunner().invoke(
         cli.lmt, ["-m", "gpt-5-nano", "--temperature", temperature], input="hi"
     )
@@ -320,14 +324,13 @@ def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch, temperat
 def test_template_and_explicit_choices_preserve_defaults_provenance(
     monkeypatch, tmp_path, template_model, args, default_map, model, controls
 ):
-    from lmterminal import templates
 
     (tmp_path / "fixture.yaml").write_text(
         f'system: "Reply concisely. "\nprompt: "Translate: "\nmodel: {template_model or "null"}\n',
         encoding="UTF-8",
     )
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     calls = []
 
     def fake_create(**kwargs):
@@ -335,7 +338,7 @@ def test_template_and_explicit_choices_preserve_defaults_provenance(
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     result = CliRunner().invoke(
         cli.lmt,
         ["--template", "fixture", "--no-stream", *args],
@@ -362,7 +365,9 @@ def test_template_and_explicit_choices_preserve_defaults_provenance(
     [("6-luna", "minimal"), ("6.1-sol", "none"), ("6-astra", "none")],
 )
 def test_cli_current_effort_errors_before_key_read(monkeypatch, model, effort):
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    monkeypatch.setattr(
+        cli_output, "read_api_key", lambda _path: pytest.fail("Must not read a key")
+    )
     result = CliRunner().invoke(cli.lmt, ["-m", model, "--reasoning-effort", effort, "hello"])
     assert result.exit_code == 2
     assert f"Reasoning effort `{effort}` is not supported" in result.output
@@ -370,7 +375,9 @@ def test_cli_current_effort_errors_before_key_read(monkeypatch, model, effort):
 
 
 def test_cli_max_uses_shared_policy(monkeypatch):
-    monkeypatch.setattr(lib, "get_api_key", lambda: pytest.fail("Must not read a key"))
+    monkeypatch.setattr(
+        cli_output, "read_api_key", lambda _path: pytest.fail("Must not read a key")
+    )
     result = CliRunner().invoke(
         cli.lmt, ["-m", "6-luna", "--reasoning-effort", "max", "--temperature", "0.3", "hello"]
     )
@@ -431,8 +438,8 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     cli_result = CliRunner().invoke(
         cli.lmt,
         [
@@ -456,26 +463,30 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
         assert cli_result.exit_code == 1
         assert "sampling rejected" in cli_result.output
         with pytest.raises(openai.BadRequestError) as raised:
-            gpt_integration.chatgpt_request(
-                "test-key",
-                messages,
-                "gpt-5.6",
-                temperature=1,
-                reasoning_effort="none",
-                request_options=options,
+            gpt_integration.send_prepared_request(
+                client,
+                prepare_request(
+                    "gpt-5.6",
+                    messages,
+                    temperature=1,
+                    reasoning_effort="none",
+                    request_options=options,
+                ),
             )
         assert raised.value is error
     else:
         assert cli_result.exit_code == 0, cli_result.output
         assert cli_result.stdout == "pong\n"
         assert (
-            gpt_integration.chatgpt_request(
-                "test-key",
-                messages,
-                "gpt-5.6",
-                temperature=1,
-                reasoning_effort="none",
-                request_options=options,
+            gpt_integration.send_prepared_request(
+                client,
+                prepare_request(
+                    "gpt-5.6",
+                    messages,
+                    temperature=1,
+                    reasoning_effort="none",
+                    request_options=options,
+                ),
             )[0]
             == "pong"
         )
@@ -494,3 +505,29 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
         ]
         * 2
     )
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_cli_closes_its_client_after_success_or_stream_failure(monkeypatch, fails):
+    closed = []
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "synthetic-key")
+
+    def events():
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="part"))])
+        if fails:
+            raise RuntimeError("synthetic interrupted stream")
+
+    class Client:
+        chat = SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            closed.append(True)
+
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: Client())
+    result = CliRunner().invoke(cli.lmt, ["--raw", "Task"], input="")
+    assert result.exit_code == (1 if fails else 0)
+    assert result.stdout == ("part" if fails else "part\n")
+    assert closed == [True]

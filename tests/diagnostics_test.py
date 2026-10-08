@@ -1,11 +1,12 @@
 import io
 import sys
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
-from lmterminal import cli, gpt_integration, lib
+from lmterminal import cli, cli_output
 from lmterminal.diagnostics import RequestDiagnostics
 
 
@@ -15,14 +16,12 @@ def chunk(text):
 
 @pytest.mark.parametrize("verbosity", [0, 1, 2, 3])
 def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path, verbosity):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "sk-private-key")
-    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "missing.json")
-    from lmterminal import templates
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "sk-private-key")
 
     (tmp_path / "synthetic.yaml").write_text(
         'system: private-system\nprompt: private-template-prompt\nmodel: "4o"\n', encoding="UTF-8"
     )
-    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path)
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     calls = []
 
     def create(**kwargs):
@@ -43,7 +42,7 @@ def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path
         )
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     args = ["--template", "synthetic", "-o", "metadata.secret=private-option"]
     if verbosity:
         args.append("-" + "v" * verbosity)
@@ -81,14 +80,14 @@ def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path
 
 @pytest.mark.parametrize("markdown", [False, True])
 def test_stream_timings_distinguish_empty_events_text_and_output(monkeypatch, markdown):
-    from lib_test import _prepare_generate_response, _use_terminal
+    from cli_output_test import _execute, _prepare_generate_response, _use_terminal
 
     _prepare_generate_response(monkeypatch)
     output = _use_terminal(monkeypatch, color_system="truecolor")
     first_text = "hello"
     if markdown:
-        monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "alabaster")
-        monkeypatch.setattr(lib, "get_markdown_inline_code_theme", lambda: "#325cc0 on #f0f0f0")
+        monkeypatch.setattr(cli_output, "code_block_theme", lambda _config: "alabaster")
+        monkeypatch.setattr(cli_output, "inline_code_theme", lambda _config: "#325cc0 on #f0f0f0")
         first_text = 'hello `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n'
     stderr = io.StringIO()
     monkeypatch.setattr(sys, "stderr", stderr)
@@ -126,8 +125,8 @@ def test_stream_timings_distinguish_empty_events_text_and_output(monkeypatch, ma
         return events()
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
-    result = lib.generate_response(prompt=[], raw=not markdown, diagnostics=diagnostics)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    result = _execute(prompt=[], raw=not markdown, diagnostics=diagnostics)
 
     assert result[0] == first_text + " world\n"
     assert result[2] == chunks
@@ -152,8 +151,7 @@ def test_stream_timings_distinguish_empty_events_text_and_output(monkeypatch, ma
 
 @pytest.mark.parametrize("text", ["hello", None])
 def test_nonstream_timings_report_output_after_response(monkeypatch, tmp_path, text):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "synthetic-key")
-    monkeypatch.setattr(lib, "get_config_path", lambda: tmp_path / "missing.json")
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "synthetic-key")
     now = [0.0]
     monkeypatch.setattr("lmterminal.diagnostics.time.monotonic", lambda: now[0])
 
@@ -166,7 +164,7 @@ def test_nonstream_timings_report_output_after_response(monkeypatch, tmp_path, t
         )
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(gpt_integration, "_get_client", lambda _: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
     result = CliRunner().invoke(cli.lmt, ["--verbose", "-vv", "--no-stream"], input="hi")
     assert result.exit_code == 0, result.output
     assert result.stdout == ("hello\n" if text else "\n")

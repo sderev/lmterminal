@@ -698,3 +698,13 @@ def get_input_price_per_million(model_name: str, prompt_tokens: int) -> float:
     if price_band.input is None:
         raise KeyError(f"No input price configured for model: {model_name}")
     return price_band.input
+
+
+def composed_messages(selected_model, system, user):
+    """Keep the legacy composed o1 policy; raw-message callers own their roles.
+
+    This selected-model policy preserves existing behavior, not a capability claim.
+    """
+    if isinstance(selected_model, str) and "o1" in selected_model:
+        return [{"role": "user", "content": user}]
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]

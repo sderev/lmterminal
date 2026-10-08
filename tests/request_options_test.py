@@ -139,3 +139,57 @@ def test_registered_parent_effort_contract_is_independent_of_sampling(model, eff
     for effort in ("max", "bad"):
         with pytest.raises(ValueError, match="Reasoning effort .* is not supported"):
             prepare_request(model, [], reasoning_effort=effort)
+
+
+def test_prepared_snapshot_is_independent_through_estimation_and_transport(tokenizer_cache):
+    from types import SimpleNamespace
+
+    from lmterminal.estimation import estimate_request
+    from lmterminal.gpt_integration import send_prepared_request
+    from lmterminal.request_options import prepare_request
+
+    messages = [{"role": "user", "content": "hello"}]
+    options = {"metadata": {"labels": ["original"]}, "extra_body": {"metadata": {"v": "old"}}}
+    request = prepare_request("4o", messages, request_options=options)
+    expected_estimate = estimate_request(request)
+    assert expected_estimate.input_tokens == 8
+    messages[0]["content"] = "replaced with a much longer prompt"
+    options["metadata"]["labels"].append("new")
+    options["extra_body"]["model"] = "unvalidated-model"
+    request.messages[0]["content"] = "public mutation"
+    request.controls["extra_body"]["stream"] = False
+    request.controls["metadata"]["labels"].clear()
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    assert estimate_request(request) == expected_estimate
+    assert send_prepared_request(client, request)[0] == "ok"
+    assert calls[0]["messages"] == [{"role": "user", "content": "hello"}]
+    assert calls[0]["metadata"] == {"labels": ["original"]}
+    assert calls[0]["extra_body"] == {"metadata": {"v": "old"}}
+    calls[0]["messages"].clear()
+    calls[0]["extra_body"]["model"] = "mutated-at-transport"
+    assert estimate_request(request) == expected_estimate
+    assert "model" not in request.controls["extra_body"]
+
+
+def test_snapshot_preserves_tuples_and_borrows_opaque_values_without_deepcopy():
+    from lmterminal.request_options import prepare_request
+
+    class Opaque:
+        def __deepcopy__(self, memo):
+            pytest.fail("Opaque provider values must not be copied")
+
+    opaque = Opaque()
+    source = {"extra_query": {"values": (["one"], "two")}, "timeout": opaque}
+    request = prepare_request("4o", [], request_options=source)
+    source["extra_query"]["values"][0].append("three")
+    assert request.controls["extra_query"]["values"] == (["one"], "two")
+    assert request.controls["timeout"] is opaque
+    source["extra_body"] = source
+    with pytest.raises(ValueError, match="acyclic"):
+        prepare_request("4o", [], request_options=source)

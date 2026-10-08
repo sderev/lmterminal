@@ -1,5 +1,7 @@
 import io
 import sys
+from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 
 import click
@@ -8,9 +10,10 @@ from click.testing import CliRunner
 from pygments.token import Keyword, Name
 from rich.syntax import PygmentsSyntaxTheme
 
-from lmterminal import cli, lib
+from lmterminal import cli, cli_output, gpt_integration, storage
 from lmterminal.code_themes import AlabasterStyle, resolve_code_theme
 from lmterminal.estimation import InputEstimate
+from lmterminal.resolution import resolve_request
 
 
 class TerminalOutput(io.TextIOWrapper):
@@ -30,9 +33,9 @@ def _use_terminal(
     terminal_env = {"TERM": term}
     if tty_interactive is not None:
         terminal_env["TTY_INTERACTIVE"] = tty_interactive
-    console_type = lib.Console
+    console_type = cli_output.Console
     monkeypatch.setattr(
-        lib,
+        cli_output,
         "Console",
         lambda **kwargs: console_type(
             force_terminal=is_terminal,
@@ -57,10 +60,18 @@ class DummyAPIConnectionError(Exception):
     pass
 
 
+def _execute(*, prompt, **kwargs):
+    request = resolve_request(prompt=prompt[0]["content"] if prompt else "")
+    return cli_output.execute_request(
+        request, config_path=Path("unused"), key_path=Path("unused"), **kwargs
+    )
+
+
 def _prepare_generate_response(monkeypatch):
-    monkeypatch.setattr(lib, "get_api_key", lambda: "test-key")
-    monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "monokai")
-    monkeypatch.setattr(lib, "get_markdown_inline_code_theme", lambda: "blue on black")
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(object()))
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
+    monkeypatch.setattr(cli_output, "code_block_theme", lambda _config: "monokai")
+    monkeypatch.setattr(cli_output, "inline_code_theme", lambda _config: "blue on black")
 
 
 def test_alabaster_resolution_preserves_palette_and_installed_styles():
@@ -76,17 +87,17 @@ def test_alabaster_resolution_preserves_palette_and_installed_styles():
 
 def test_generate_response_renders_configured_alabaster_and_inline_colors(monkeypatch):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "alabaster")
-    monkeypatch.setattr(lib, "get_markdown_inline_code_theme", lambda: "#325cc0 on #f0f0f0")
+    monkeypatch.setattr(cli_output, "code_block_theme", lambda _config: "alabaster")
+    monkeypatch.setattr(cli_output, "inline_code_theme", lambda _config: "#325cc0 on #f0f0f0")
     output = _use_terminal(monkeypatch, color_system="truecolor")
     text = 'Inline `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n'
 
     def send(**kwargs):
-        kwargs["update_markdown_stream"](text)
+        kwargs["on_text"](text)
         return text, 0, None
 
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", send)
-    lib.generate_response(prompt=[{"role": "user", "content": "fixture"}])
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", send)
+    _execute(prompt=[{"role": "user", "content": "fixture"}])
     rendered = output.buffer.getvalue().decode("UTF-8")
     assert "38;2;122;62;157;48;2;240;240;240mdef" in rendered  # Purple code on grey.
     assert "\x1b[48;2;240;240;240m" + " " * 80 + "\x1b[0m" in rendered  # Block padding.
@@ -95,15 +106,15 @@ def test_generate_response_renders_configured_alabaster_and_inline_colors(monkey
 
 def test_unknown_code_theme_fails_before_credentials_or_provider(monkeypatch):
     _use_terminal(monkeypatch)
-    monkeypatch.setattr(lib, "get_markdown_code_block_theme", lambda: "missing-lmt-style")
+    monkeypatch.setattr(cli_output, "code_block_theme", lambda _config: "missing-lmt-style")
 
     def forbidden(*args, **kwargs):
         pytest.fail("Invalid formatted theme must fail before credentials or provider work")
 
-    monkeypatch.setattr(lib, "get_api_key", forbidden)
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", forbidden)
+    monkeypatch.setattr(cli_output, "read_api_key", forbidden)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", forbidden)
     with pytest.raises(click.ClickException, match="missing-lmt-style.*unavailable") as error:
-        lib.generate_response(prompt=[{"role": "user", "content": "fixture"}])
+        _execute(prompt=[{"role": "user", "content": "fixture"}])
     assert "code_block_theme" in error.value.format_message()
     assert "--raw" in error.value.format_message()
 
@@ -118,18 +129,16 @@ def test_plain_response_skips_theme_validation(monkeypatch, raw, stream, is_term
     def forbidden(*args, **kwargs):
         pytest.fail("Plain responses must not load or validate formatting preferences")
 
-    monkeypatch.setattr(lib, "get_markdown_code_block_theme", forbidden)
-    monkeypatch.setattr(lib, "get_markdown_inline_code_theme", forbidden)
+    monkeypatch.setattr(cli_output, "code_block_theme", forbidden)
+    monkeypatch.setattr(cli_output, "inline_code_theme", forbidden)
 
     def send(**kwargs):
-        assert kwargs["update_markdown_stream"] is None
+        kwargs["on_text"]("hello")
         return "hello", 0, None
 
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", send)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", send)
     assert (
-        lib.generate_response(
-            prompt=[{"role": "user", "content": "fixture"}], raw=raw, stream=stream
-        )[0]
+        _execute(prompt=[{"role": "user", "content": "fixture"}], raw=raw, stream=stream)[0]
         == "hello\n"
     )
 
@@ -138,9 +147,9 @@ def test_token_estimate_skips_response_theme_validation(monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Token estimates must not load themes or credentials")
 
-    monkeypatch.setattr(lib, "get_markdown_code_block_theme", forbidden)
-    monkeypatch.setattr(lib, "get_api_key", forbidden)
-    monkeypatch.setattr(lib, "estimate_request", lambda _: InputEstimate(model="gpt-5-nano"))
+    monkeypatch.setattr(cli_output, "code_block_theme", forbidden)
+    monkeypatch.setattr(cli_output, "read_api_key", forbidden)
+    monkeypatch.setattr(cli_output, "estimate_request", lambda _: InputEstimate(model="gpt-5-nano"))
     result = CliRunner().invoke(cli.lmt, ["--tokens"], input="fixture")
     assert result.exit_code == 1  # Explicit unavailable estimate, independent of themes.
     assert "Request input tokens and cost: unavailable" in result.output
@@ -148,7 +157,7 @@ def test_token_estimate_skips_response_theme_validation(monkeypatch):
 
 def test_generate_response_handles_rate_limit_error(monkeypatch):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(lib.openai, "RateLimitError", DummyRateLimitError)
+    monkeypatch.setattr(cli_output.openai, "RateLimitError", DummyRateLimitError)
 
     called = {"value": False}
 
@@ -158,19 +167,18 @@ def test_generate_response_handles_rate_limit_error(monkeypatch):
     def fake_rate_limit_handler():
         called["value"] = True
 
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
-    monkeypatch.setattr(lib.openai_utils, "handle_rate_limit_error", fake_rate_limit_handler)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
+    monkeypatch.setattr(cli_output, "handle_rate_limit_error", fake_rate_limit_handler)
 
-    with pytest.raises(SystemExit) as exc_info:
-        lib.generate_response(prompt=[{"role": "user", "content": "hello"}])
-
-    assert exc_info.value.code == 1
+    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
+    assert result.exit_code == 1
+    assert result.stdout == ""
     assert called["value"] is True
 
 
 def test_generate_response_handles_authentication_error(monkeypatch):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(lib.openai, "AuthenticationError", DummyAuthenticationError)
+    monkeypatch.setattr(cli_output.openai, "AuthenticationError", DummyAuthenticationError)
 
     called = {"value": False}
 
@@ -180,31 +188,28 @@ def test_generate_response_handles_authentication_error(monkeypatch):
     def fake_auth_handler():
         called["value"] = True
 
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
-    monkeypatch.setattr(lib.openai_utils, "handle_authentication_error", fake_auth_handler)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
+    monkeypatch.setattr(cli_output, "handle_authentication_error", fake_auth_handler)
 
-    with pytest.raises(SystemExit) as exc_info:
-        lib.generate_response(prompt=[{"role": "user", "content": "hello"}])
-
-    assert exc_info.value.code == 1
+    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
+    assert result.exit_code == 1
+    assert result.stdout == ""
     assert called["value"] is True
 
 
 def test_generate_response_handles_api_connection_error(monkeypatch, capsys):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(lib.openai, "APIConnectionError", DummyAPIConnectionError)
+    monkeypatch.setattr(cli_output.openai, "APIConnectionError", DummyAPIConnectionError)
 
     def fake_chatgpt_request(**_kwargs):
         raise DummyAPIConnectionError("network down")
 
-    monkeypatch.setattr(lib.openai_utils, "send_prepared_request", fake_chatgpt_request)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
 
-    with pytest.raises(SystemExit) as exc_info:
-        lib.generate_response(prompt=[{"role": "user", "content": "hello"}])
-
-    captured = capsys.readouterr()
-    assert exc_info.value.code == 1
-    assert "network down" in captured.err
+    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "network down" in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -247,9 +252,9 @@ def test_generate_response_stream_is_visible_before_completion(
         return gated_chunks()
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _api_key: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
 
-    content, response_time, response = lib.generate_response(
+    content, response_time, response = _execute(
         prompt=[{"role": "user", "content": "hello"}],
         raw=raw,
         stream=True,
@@ -278,9 +283,9 @@ def test_generate_response_non_stream_preserves_plain_text_and_response(monkeypa
         return response
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(lib.openai_utils, "_get_client", lambda _api_key: client)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
 
-    content, response_time, response_payload = lib.generate_response(
+    content, response_time, response_payload = _execute(
         prompt=[{"role": "user", "content": "hello"}], raw=False, stream=False
     )
     output.flush()
@@ -314,61 +319,20 @@ def test_theme_reads_preserve_config_bytes(
 ):
     config_path = tmp_path / "config.json"
     config_path.write_bytes(config_bytes)
-    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
 
-    assert lib.load_config() == expected_config
+    assert storage.load_config(config_path) == expected_config
     assert (
-        lib.get_markdown_code_block_theme(),
-        lib.get_markdown_inline_code_theme(),
+        cli_output.code_block_theme(storage.load_config(config_path)),
+        cli_output.inline_code_theme(storage.load_config(config_path)),
     ) == expected_themes
     assert config_path.read_bytes() == config_bytes
 
 
 def test_theme_reads_do_not_create_missing_config(monkeypatch, tmp_path):
     config_path = tmp_path / "missing" / "config.json"
-    monkeypatch.setattr(lib, "get_config_path", lambda: config_path)
 
-    assert lib.load_config() == {}
-    assert lib.get_markdown_code_block_theme() == "monokai"
-    assert lib.get_markdown_inline_code_theme() == "blue on black"
+    assert storage.load_config(config_path) == {}
+    assert cli_output.code_block_theme(storage.load_config(config_path)) == "monokai"
+    assert cli_output.inline_code_theme(storage.load_config(config_path)) == "blue on black"
     assert not config_path.exists()
     assert not config_path.parent.exists()
-
-
-def test_prepare_response_composes_messages_and_forwards_controls(monkeypatch):
-    calls = []
-    payload = object()
-
-    def fake_generate(request, raw, stream, *, diagnostics=None):
-        calls.append((request.model, request.messages, raw, stream, request.controls))
-        return "hello\n", 0.1, payload
-
-    monkeypatch.setattr(lib, "_generate_prepared_response", fake_generate)
-    request = lib.resolve_request(
-        system="Reply concisely.",
-        model="gpt-5.4",
-        prompt="Say hello.",
-        temperature=0.3,
-        reasoning_effort="none",
-        request_options={"verbosity": "low", "max_completion_tokens": 100},
-    )
-    result = lib.prepare_and_generate_response(request, no_stream=True, raw=True)
-
-    assert result == ("hello\n", 0.1, payload)
-    assert calls == [
-        (
-            "gpt-5.4",
-            [
-                {"role": "system", "content": "Reply concisely."},
-                {"role": "user", "content": "Say hello."},
-            ],
-            True,
-            False,
-            {
-                "temperature": 0.3,
-                "reasoning_effort": "none",
-                "verbosity": "low",
-                "max_completion_tokens": 100,
-            },
-        )
-    ]

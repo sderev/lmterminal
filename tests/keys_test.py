@@ -4,10 +4,10 @@ import socket
 import stat
 
 import pytest
-from click import ClickException
 from click.testing import CliRunner
 
-from lmterminal import cli, lib
+from lmterminal import cli, cli_output, storage
+from lmterminal.storage import StorageError
 
 
 @pytest.fixture(autouse=True)
@@ -18,36 +18,43 @@ def isolated_home(monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
         pytest.fail("Key tests must not contact a provider")
 
-    monkeypatch.setattr(lib.openai_utils, "_get_client", forbidden)
-    monkeypatch.setattr(lib.openai_utils.openai, "OpenAI", forbidden)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", forbidden)
     monkeypatch.setattr(socket.socket, "connect", forbidden)
 
 
-def test_new_key_file_is_private_under_permissive_umask(tmp_path):
+@pytest.fixture
+def key_path(tmp_path):
+    path = tmp_path / ".config/lmt/keys.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{}\n", encoding="UTF-8")
+    return path
+
+
+def test_new_key_file_is_private_under_permissive_umask(tmp_path, key_path):
     previous_umask = os.umask(0)
     try:
-        path = lib.get_api_key_path()
+        path = key_path
         assert path == tmp_path / ".config" / "lmt" / "keys.json"
-        assert json.loads(path.read_text(encoding="UTF-8")) == {}
-        assert lib.get_api_key() == ""
-        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        path.unlink()
+        assert storage.read_api_key(key_path) == ""
+        assert not path.exists()
 
         key = '  synthetic-"key"-\\-é\n'
-        lib.write_key(key)
+        storage.write_key(key_path, key)
         assert json.loads(path.read_text(encoding="UTF-8")) == {"openai": key}
-        assert lib.get_api_key() == key.strip()
+        assert storage.read_api_key(key_path) == key.strip()
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
     finally:
         os.umask(previous_umask)
 
 
-def test_overwrite_restricts_permissions_before_replacing_key(monkeypatch):
-    path = lib.get_api_key_path()
+def test_overwrite_restricts_permissions_before_replacing_key(monkeypatch, key_path):
+    path = key_path
     original_keys = {"openai": "synthetic-original-key", "future": "synthetic-other-key"}
     path.write_text(json.dumps(original_keys), encoding="UTF-8")
     original_bytes = path.read_bytes()
     path.chmod(0o666)
-    assert lib.get_api_key() == "synthetic-original-key"
+    assert storage.read_api_key(key_path) == "synthetic-original-key"
     assert stat.S_IMODE(path.stat().st_mode) == 0o666
     real_fchmod = os.fchmod
     calls = []
@@ -58,8 +65,8 @@ def test_overwrite_restricts_permissions_before_replacing_key(monkeypatch):
         assert stat.S_IMODE(os.fstat(descriptor).st_mode) == 0o600
         calls.append(mode)
 
-    monkeypatch.setattr(lib.os, "fchmod", restrict)
-    lib.write_key("dummy-new")
+    monkeypatch.setattr(storage.os, "fchmod", restrict)
+    storage.write_key(key_path, "dummy-new")
 
     assert calls == [0o600]
     assert json.loads(path.read_text(encoding="UTF-8")) == {
@@ -69,8 +76,8 @@ def test_overwrite_restricts_permissions_before_replacing_key(monkeypatch):
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-def test_permission_failure_leaves_stored_key_intact(monkeypatch):
-    path = lib.get_api_key_path()
+def test_permission_failure_leaves_stored_key_intact(monkeypatch, key_path):
+    path = key_path
     path.write_text('{"openai": "synthetic-original-key"}', encoding="UTF-8")
     original_bytes = path.read_bytes()
     path.chmod(0o666)
@@ -78,9 +85,9 @@ def test_permission_failure_leaves_stored_key_intact(monkeypatch):
     def fail(*args):
         raise PermissionError("synthetic chmod failure")
 
-    monkeypatch.setattr(lib.os, "fchmod", fail)
+    monkeypatch.setattr(storage.os, "fchmod", fail)
     with pytest.raises(PermissionError, match="synthetic chmod failure"):
-        lib.write_key("dummy-new")
+        storage.write_key(key_path, "dummy-new")
     assert path.read_bytes() == original_bytes
     assert stat.S_IMODE(path.stat().st_mode) == 0o666
 
@@ -99,13 +106,16 @@ def test_permission_failure_leaves_stored_key_intact(monkeypatch):
         b'{"openai": "dummy", "future": 42}',
     ],
 )
-def test_invalid_storage_fails_without_exposing_or_replacing_contents(contents):
-    path = lib.get_api_key_path()
+def test_invalid_storage_fails_without_exposing_or_replacing_contents(contents, key_path):
+    path = key_path
     path.write_bytes(contents)
     path.chmod(0o666)
 
-    for operation in (lib.get_api_key, lambda: lib.write_key("dummy-new")):
-        with pytest.raises(ClickException, match="keys.json must contain") as error:
+    for operation in (
+        lambda: storage.read_api_key(key_path),
+        lambda: storage.write_key(key_path, "dummy-new"),
+    ):
+        with pytest.raises(StorageError, match="keys.json must contain") as error:
             operation()
         assert "synthetic-secret-sentinel" not in str(error.value)
         assert error.value.__cause__ is None
@@ -113,11 +123,11 @@ def test_invalid_storage_fails_without_exposing_or_replacing_contents(contents):
         assert stat.S_IMODE(path.stat().st_mode) == 0o666
 
 
-def test_write_rejects_non_string_key_without_replacing_storage():
-    path = lib.get_api_key_path()
+def test_write_rejects_non_string_key_without_replacing_storage(key_path):
+    path = key_path
     original_bytes = path.read_bytes()
-    with pytest.raises(ClickException, match="API key must be a string"):
-        lib.write_key(None)
+    with pytest.raises(StorageError, match="API key must be a string"):
+        storage.write_key(key_path, None)
     assert path.read_bytes() == original_bytes
 
 
@@ -129,8 +139,8 @@ def test_write_rejects_non_string_key_without_replacing_storage():
         ('{"openai": ["synthetic-secret-sentinel"]}', "object with string key values"),
     ],
 )
-def test_cli_reports_invalid_storage_without_secret_contents(command, contents, message):
-    path = lib.get_api_key_path()
+def test_cli_reports_invalid_storage_without_secret_contents(command, contents, message, key_path):
+    path = key_path
     path.write_text(contents, encoding="UTF-8")
     result = CliRunner().invoke(cli.lmt, command)
     assert result.exit_code == 1, result.output
@@ -142,8 +152,10 @@ def test_cli_reports_invalid_storage_without_secret_contents(command, contents, 
 
 @pytest.mark.parametrize("command", ["set", "edit"])
 @pytest.mark.parametrize("openai_entry", [{}, {"openai": ""}])
-def test_key_commands_add_missing_openai_key_and_preserve_other_provider(command, openai_entry):
-    path = lib.get_api_key_path()
+def test_key_commands_add_missing_openai_key_and_preserve_other_provider(
+    command, openai_entry, key_path
+):
+    path = key_path
     path.write_text(json.dumps({"future": "dummy-other", **openai_entry}), encoding="UTF-8")
     result = CliRunner().invoke(cli.lmt, ["key", command], input="dummy-first\n")
     assert result.exit_code == 0, result.output
@@ -155,13 +167,13 @@ def test_key_commands_add_missing_openai_key_and_preserve_other_provider(command
     }
 
 
-def test_key_commands_keep_hidden_input_and_unchanged_key_behavior():
+def test_key_commands_keep_hidden_input_and_unchanged_key_behavior(key_path):
     runner = CliRunner()
     result = runner.invoke(cli.lmt, ["key", "set"], input="dummy-first\n")
     assert result.exit_code == 0, result.output
     assert "API key added." in result.output
     assert "dummy-first" not in result.output
-    path = lib.get_api_key_path()
+    path = key_path
     path.write_text('{"openai": "dummy-first", "future": "dummy-other"}', encoding="UTF-8")
     original_bytes = path.read_bytes()
     path.chmod(0o666)
@@ -180,9 +192,17 @@ def test_key_commands_keep_hidden_input_and_unchanged_key_behavior():
     assert result.exit_code == 0, result.output
     assert "API key was updated." in result.output
     assert "dummy-second" not in result.output
-    assert lib.get_api_key() == "dummy-second"
+    assert storage.read_api_key(key_path) == "dummy-second"
     assert json.loads(path.read_text(encoding="UTF-8")) == {
         "openai": "dummy-second",
         "future": "dummy-other",
     }
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_missing_key_cli_is_stderr_only_and_creates_nothing(tmp_path):
+    result = CliRunner().invoke(cli.lmt, ["--raw", "fixture"], input="")
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "lmt key set" in result.stderr
+    assert not (tmp_path / ".config/lmt").exists()

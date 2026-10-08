@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from .request_options import validate_request_options
+from .request_options import snapshot_containers, validate_request_options
 
 
 class TemplateError(ValueError):
@@ -46,16 +46,14 @@ class Template:
         if not isinstance(self.request_options, Mapping):
             raise TemplateError("Field `request_options` must be a mapping.")
         try:
-            validate_request_options(self.request_options)
+            options = snapshot_containers(self.request_options)
+            validate_request_options(options)
         except (TypeError, ValueError) as error:
             raise TemplateError(f"Field `request_options`: {error}") from error
-        object.__setattr__(self, "request_options", dict(self.request_options))
+        object.__setattr__(self, "request_options", options)
 
 
-TEMPLATES_DIR = Path.home() / ".config" / "lmt" / "templates"
-
-
-def template_path(name: str, directory: Path | None = None) -> Path:
+def template_path(name: str, directory: Path) -> Path:
     """Resolve an extensionless basename without creating directories."""
     if (
         not isinstance(name, str)
@@ -66,25 +64,25 @@ def template_path(name: str, directory: Path | None = None) -> Path:
         or Path(name).suffix
     ):
         raise TemplateError("Template names must be extensionless basenames.")
-    return (TEMPLATES_DIR if directory is None else Path(directory)) / f"{name}.yaml"
+    return Path(directory) / f"{name}.yaml"
 
 
-def list_templates(directory: Path | None = None) -> list[str]:
+def list_templates(directory: Path) -> list[str]:
     """List only YAML files; a missing directory is an empty collection."""
-    directory = TEMPLATES_DIR if directory is None else Path(directory)
+    directory = Path(directory)
     if not directory.exists():
         return []
     return sorted(path.stem for path in directory.glob("*.yaml") if path.is_file())
 
 
-def load_template(name: str, directory: Path | None = None) -> Template:
+def load_template(name: str, directory: Path) -> Template:
     """Load and validate YAML without printing errors or disclosing file contents."""
     path = template_path(name, directory)
     try:
         content = yaml.safe_load(path.read_text(encoding="UTF-8"))
     except (OSError, UnicodeError) as error:
         raise TemplateError(f"Cannot read template `{name}`.") from error
-    except yaml.YAMLError:
+    except (yaml.YAMLError, ValueError):
         raise TemplateError(f"Template `{name}` contains invalid YAML.") from None
     if content is None:
         content = {}

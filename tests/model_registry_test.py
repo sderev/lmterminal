@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 from click.testing import CliRunner
 
-from lmterminal import cli, estimation, gpt_integration, lib, model_registry
+from lmterminal import cli, cli_output, estimation, model_registry, resolution
 
 
 @pytest.mark.parametrize(
@@ -34,10 +34,10 @@ def test_removed_chatgpt_alias_is_rejected_offline(no_provider_or_download):
     result = CliRunner().invoke(cli.lmt, ["--model", "chatgpt", "hello"])
     assert result.exit_code == 2
     assert "Invalid model name" in result.output
-    with pytest.raises(lib.RequestResolutionError, match="registered model name"):
-        lib.resolve_request(model="chatgpt", prompt="hello")
+    with pytest.raises(resolution.RequestResolutionError, match="registered model name"):
+        resolution.resolve_request(model="chatgpt", prompt="hello")
     for name in ("gpt-3.5-turbo", "3.5"):
-        assert lib.resolve_request(model=name, prompt="hello").model == "gpt-3.5-turbo"
+        assert resolution.resolve_request(model=name, prompt="hello").model == "gpt-3.5-turbo"
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -112,8 +112,8 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Model listing must stay offline")
 
-    monkeypatch.setattr(lib, "get_api_key", forbidden)
-    monkeypatch.setattr(gpt_integration, "_get_client", forbidden)
+    monkeypatch.setattr(cli_output, "read_api_key", forbidden)
+    monkeypatch.setattr(cli_output.openai, "OpenAI", forbidden)
     monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", forbidden)
     monkeypatch.setattr(estimation.tiktoken, "get_encoding", forbidden)
     assert model_registry.resolve_model_name("sol") == "gpt-6.1-sol"

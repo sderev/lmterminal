@@ -1,6 +1,7 @@
 """Serialize saved template fields without applying execution defaults or validation."""
 
 from collections.abc import Mapping
+from pathlib import Path
 
 import yaml
 
@@ -24,9 +25,9 @@ def _represent_text(dumper, value):
 _ViewDumper.add_representer(str, _represent_text)
 
 
-def serialize_saved_template(name: str) -> str:
+def serialize_saved_template(name: str, directory: Path) -> str:
     """Read a YAML mapping for inspection, retaining stored values and key order."""
-    path = template_path(name)
+    path = template_path(name, directory)
     try:
         content = yaml.safe_load(path.read_text(encoding="UTF-8"))
     except (OSError, UnicodeError) as error:
