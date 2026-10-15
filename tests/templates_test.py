@@ -323,23 +323,33 @@ def test_template_management_alias_in_root_help(no_provider_or_download):
         assert f"  {group_name} " in result.output
 
 
-def test_explicit_prompt_accepts_template_command_word(no_provider_or_download, monkeypatch):
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (["prompt", "template", "list"], "template list"),
+        (["tem", "list"], "tem list"),
+        (["temp", "list"], "temp list"),
+        (["mo", "please"], "mo please"),
+    ],
+)
+def test_prompt_accepts_command_words_and_prefixes(
+    no_provider_or_download, monkeypatch, args, expected
+):
     requests = []
     monkeypatch.setattr(cli, "execute_request", lambda request, **kwargs: requests.append(request))
-    result = CliRunner().invoke(cli.lmt, ["prompt", "template", "list"])
+    result = CliRunner().invoke(cli.lmt, args)
     assert result.exit_code == 0, result.output
     assert len(requests) == 1
-    assert requests[0].messages[-1]["content"] == "template list"
+    assert requests[0].messages[-1]["content"] == expected
 
 
 @pytest.mark.parametrize("group_name", ["template", "templates"])
-def test_template_management_alias_bash_completion(no_provider_or_download, tmp_path, group_name):
+def test_template_management_alias_shell_completion(shell_completion, tmp_path, group_name):
     directory = tmp_path / ".config" / "lmt" / "templates"
     directory.mkdir(parents=True)
     for name in ("translate.yaml", "transcribe.yaml", "summarize.yaml", "trans.txt"):
         (directory / name).write_text("prompt: Task\n", encoding="UTF-8")
     (directory / "trans-directory.yaml").mkdir()
-    runner = CliRunner()
     for words, expected in [
         (f"lmt {group_name} ", ["add", "delete", "edit", "list", "rename", "view"]),
         *[
@@ -347,37 +357,25 @@ def test_template_management_alias_bash_completion(no_provider_or_download, tmp_
             for command in ("view", "edit", "delete", "rename")
         ],
     ]:
-        result = runner.invoke(
-            cli.lmt,
-            [],
-            prog_name="lmt",
-            env={
-                "_LMT_COMPLETE": "bash_complete",
-                "COMP_WORDS": words,
-                "COMP_CWORD": "2" if words.endswith(" ") else "3",
-            },
-        )
-        assert result.exit_code == 0, result.output
-        assert result.output.splitlines() == [f"plain,{value}" for value in expected]
+        assert shell_completion(words, 2 if words.endswith(" ") else 3) == expected
 
 
 @pytest.mark.parametrize("command", ["lmt", "lmt prompt"])
-def test_prompt_template_bash_completion(no_provider_or_download, tmp_path, command):
+@pytest.mark.parametrize("option", ["-t trans", "--template trans", "--template=trans"])
+def test_prompt_template_shell_completion(
+    shell_completion, completion_shell, tmp_path, command, option
+):
     directory = tmp_path / ".config" / "lmt" / "templates"
     directory.mkdir(parents=True)
     (directory / "translate.yaml").write_text("prompt: Task\n", encoding="UTF-8")
-    result = CliRunner().invoke(
-        cli.lmt,
-        [],
-        prog_name="lmt",
-        env={
-            "_LMT_COMPLETE": "bash_complete",
-            "COMP_WORDS": f"{command} -t trans",
-            "COMP_CWORD": str(len(command.split()) + 1),
-        },
-    )
-    assert result.exit_code == 0, result.output
-    assert result.output == "plain,translate\n"
+    words = f"{command} {option}"
+    expected = "translate"
+    if "=" in option:
+        if completion_shell == "bash":
+            words = words.replace("=", "\n=\n")
+        else:
+            expected = "--template=translate"
+    assert shell_completion(words, len(words.split()) - 1) == [expected]
 
 
 @pytest.mark.parametrize("command_name", ["view", "edit", "delete", "rename"])
