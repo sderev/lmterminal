@@ -37,6 +37,37 @@ Reading an existing key or leaving it unchanged does not change its permissions.
 This storage change requires reconfiguration: run `lmt key set` again after
 upgrading. Legacy `key.env` and `API_keys.json` files are neither read nor migrated.
 
+## Shell completion
+
+Enable completion in the current shell. Generating completion requires no API key.
+
+For a source checkout, first run `export PATH="$PWD/.venv/bin:$PATH"` from its
+root so the shell can invoke that checkout's `lmt`.
+
+For Bash 4.4 or later:
+
+```bash
+eval "$(_LMT_COMPLETE=bash_source lmt)"
+```
+
+For Zsh, initialize its completion system before loading LMT's completion:
+
+```zsh
+autoload -Uz compinit
+compinit
+eval "$(_LMT_COMPLETE=zsh_source lmt)"
+```
+
+Add the matching recipe to `~/.bashrc` or `~/.zshrc` to enable it in new shells.
+
+Press Tab after `lmt `, `lmt tem`, `lmt mo`, `lmt key `, or `lmt -t ` to see
+commands and template names. Pressing Enter on an unregistered command prefix
+sends it as prompt text.
+
+Template names and reasoning-effort values complete after a space or `=`, for example
+`lmt --template=trans` and `lmt prompt --reasoning-effort=no`. Tab keeps the
+option name when completing the value.
+
 ## Usage
 
 ```bash

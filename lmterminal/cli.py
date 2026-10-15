@@ -5,6 +5,7 @@ from pathlib import Path
 
 import click
 from click.core import ParameterSource
+from click.shell_completion import BashComplete, CompletionItem, ZshComplete, add_completion_class
 from click_default_group import DefaultGroup
 from rich.console import Console
 from rich.syntax import Syntax
@@ -138,7 +139,74 @@ def parse_request_options(ctx, param, values):
     return options
 
 
-@click.group(cls=DefaultGroup, default="prompt", default_if_no_args=True)
+class PromptGroup(DefaultGroup):
+    """Keep root completion available alongside default prompt invocation."""
+
+    def parse_args(self, ctx, args):
+        if ctx.resilient_parsing and not args:
+            # DefaultGroup would inject "prompt", hiding root commands from Click.
+            args = click.Group.parse_args(self, ctx, args)
+            ctx.meta["lmterminal.root_completion"] = True
+            return args
+        return super().parse_args(ctx, args)
+
+    def get_params(self, ctx):
+        params = super().get_params(ctx)
+        if ctx.resilient_parsing and ctx.meta.get("lmterminal.root_completion"):
+            # Click resolves --option=value before calling shell_complete.
+            prompt_options = [
+                param
+                for param in self.commands[self.default_cmd_name].params
+                if isinstance(param, click.Option)
+            ]
+            return [*params, *prompt_options]
+        return params
+
+    def shell_complete(self, ctx, incomplete):
+        if incomplete.startswith("-"):
+            # Prompt options are accepted even when its command name is omitted.
+            return self.commands[self.default_cmd_name].shell_complete(ctx, incomplete)
+        return super().shell_complete(ctx, incomplete)
+
+
+@add_completion_class
+class PromptBashComplete(BashComplete):
+    def get_completion_args(self):
+        args, incomplete = super().get_completion_args()
+        if not isinstance(self.cli, PromptGroup):
+            return args, incomplete
+        # Bash splits --option=value at '=' before calling Click's script.
+        words = []
+        join_value = False
+        for word in [*args, incomplete]:
+            if word == "=" and words and words[-1].startswith("--"):
+                words[-1] += "="
+                join_value = True
+            elif join_value:
+                words[-1] += word
+                join_value = False
+            else:
+                words.append(word)
+        return words[:-1], words[-1]
+
+
+@add_completion_class
+class PromptZshComplete(ZshComplete):
+    def get_completions(self, args, incomplete):
+        items = super().get_completions(args, incomplete)
+        if isinstance(self.cli, PromptGroup) and incomplete.startswith("--") and "=" in incomplete:
+            # Click's Zsh script replaces the whole word, including --option=.
+            prefix = incomplete.partition("=")[0] + "="
+            return [
+                CompletionItem(prefix + item.value, type=item.type, help=item.help)
+                if item.type == "plain"
+                else item
+                for item in items
+            ]
+        return items
+
+
+@click.group(cls=PromptGroup, default="prompt", default_if_no_args=True)
 @click.version_option(package_name="lmterminal")
 @click.pass_context
 def lmt(ctx):

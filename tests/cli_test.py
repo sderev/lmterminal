@@ -19,6 +19,51 @@ def test_top_level_help_points_to_prompt_controls():
     assert "model-dependent" in result.output
 
 
+@pytest.mark.parametrize(
+    "words, word_index, expected",
+    [
+        ("lmt ", 1, ["key", "models", "prompt", "template", "templates"]),
+        ("lmt tem", 1, ["template", "templates"]),
+        ("lmt mo", 1, ["models"]),
+        ("lmt key ", 2, ["edit", "set"]),
+        ("lmt --tex", 1, ["--text"]),
+        ("lmt prompt --tex", 2, ["--text"]),
+    ],
+)
+def test_shell_command_and_option_completion(shell_completion, words, word_index, expected):
+    assert shell_completion(words, word_index) == expected
+
+
+@pytest.mark.parametrize("command", ["lmt", "lmt prompt"])
+@pytest.mark.parametrize("previous", ["", "--template=translate "])
+def test_joined_reasoning_option_shell_completion(
+    shell_completion, completion_shell, command, previous
+):
+    words = f"{command} {previous}--reasoning-effort=no"
+    expected = "--reasoning-effort=none"
+    if completion_shell == "bash":
+        words = words.replace("=", "\n=\n")
+        expected = "none"
+    assert shell_completion(words, len(words.split()) - 1) == [expected]
+
+
+def test_no_arguments_reads_terminal_input(no_provider_or_download, monkeypatch):
+    stdin = io.StringIO("Typed prompt\n")
+    stdout = io.StringIO()
+    monkeypatch.setattr(stdin, "isatty", lambda: True)
+    monkeypatch.setattr(stdout, "isatty", lambda: True)
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(sys, "stdout", stdout)
+    requests = []
+    monkeypatch.setattr(cli, "execute_request", lambda request, **kwargs: requests.append(request))
+
+    cli.lmt.main(args=[], prog_name="lmt", standalone_mode=False)
+
+    assert len(requests) == 1
+    assert requests[0].messages[-1]["content"] == "Typed prompt\n"
+    assert "press Ctrl+D" in stdout.getvalue()
+
+
 def test_prompt_help_explains_reasoning_default_and_debug_disclosure():
     result = CliRunner().invoke(cli.lmt, ["prompt", "--help"])
     assert result.exit_code == 0

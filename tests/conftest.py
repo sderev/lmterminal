@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import tiktoken.load
 import tiktoken.registry
+from click.testing import CliRunner
 
 # Guard imports as well as test execution; never consult personal HOME/config.
 # Explicit live runs retain the historical opt-in, separate from offline gate.
@@ -34,7 +35,7 @@ if "--run-live" not in sys.argv:
     openai.OpenAI = _forbidden
     tiktoken.load.read_file = _forbidden
 
-from lmterminal import cli_output
+from lmterminal import cli, cli_output
 
 
 def pytest_addoption(parser):
@@ -82,3 +83,35 @@ def tokenizer_cache(no_provider_or_download, monkeypatch, tmp_path):
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(target))
     # Upstream loaders verify their expected SHA-256 before constructing encoders.
     return target
+
+
+@pytest.fixture(params=["bash", "zsh"])
+def completion_shell(request):
+    return request.param
+
+
+@pytest.fixture
+def shell_completion(completion_shell, no_provider_or_download):
+    """Read candidates through Click's shell protocol, with keys/network forbidden."""
+
+    def complete(words, word_index):
+        result = CliRunner().invoke(
+            cli.lmt,
+            [],
+            prog_name="lmt",
+            env={
+                "_LMT_COMPLETE": f"{completion_shell}_complete",
+                "COMP_WORDS": words,
+                "COMP_CWORD": str(word_index),
+            },
+        )
+        assert result.exit_code == 0, result.output
+        lines = result.output.rstrip("\n").splitlines()
+        if completion_shell == "bash":
+            assert all(line.startswith("plain,") for line in lines), result.output
+            return [line.partition(",")[2] for line in lines]
+        assert len(lines) % 3 == 0, result.output
+        assert all(kind == "plain" for kind in lines[::3]), result.output
+        return lines[1::3]
+
+    return complete
