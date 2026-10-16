@@ -92,9 +92,10 @@ lmt --model gpt-5.4 "Explain this function"
 lmt --tokens --model gpt-5.4 "Estimate this prompt"
 ```
 
-With no model or reasoning choice, LMT uses `gpt-6-luna` with reasoning effort
-`none`. An explicit CLI or template model keeps that model's provider reasoning
-default unless you pass `--reasoning-effort`, including when you select Luna.
+With no CLI, template, or saved model and no reasoning choice, LMT uses
+`gpt-6-luna` with reasoning effort `none`. A CLI, template, or saved model keeps
+that model's provider reasoning default unless an effort is supplied, including
+when you select Luna.
 
 `lmt models` lists the registered Chat Completions models and aliases. Other
 endpoints, including Responses-only Pro and Codex models, and retired models are
@@ -216,9 +217,10 @@ lmt -o max_completion_tokens=500 -o stream_options.include_usage=true "Say hello
 ```
 
 Run `lmt prompt --help` for prompt options (also accepted without `prompt`).
-`--reasoning-effort none` requests no reasoning where supported. Omitting model
-and effort uses Luna with `none`; an explicitly selected model keeps its provider
-reasoning default when effort is omitted. Supported values depend on the model.
+`--reasoning-effort none` requests no reasoning where supported. With no CLI,
+template, or saved model and no effort, Luna uses `none`; a selected model keeps
+its provider reasoning default when effort is omitted. Supported values depend on
+the model.
 Published effort lists are validated locally. GPT-5.5 accepts `none`, `low`,
 `medium`, `high`, `xhigh`; GPT-5.6 variants,
 GPT-6 Sol and GPT-6 Luna also accept `max`. These models default to `medium`.
@@ -229,7 +231,7 @@ Temperature defaults to 1 where sampling is documented as allowed and is omitted
 for restricted or unverified combinations. GPT-5/nano/mini and o-series models
 reject explicit sampling controls. GPT-5.1/5.2/5.4 variants allow sampling with
 reasoning `none` (their default). GPT-6 Sol and Luna require effective `none`;
-implicit Luna requests use `none`, while explicitly selected Sol/Luna models
+package-only Luna requests use `none`, while CLI, template, or saved Sol/Luna models
 require `--reasoning-effort none` to enable sampling.
 GPT-6.1 Sol and Astra reject sampling. These rules cover temperature, `top_p`,
 `logprobs` and `top_logprobs`, including explicit temperature `1`, which previously
@@ -291,11 +293,12 @@ whitespace. Content precedes instructions with `\n___\n` between them. There is
 no variable substitution. `--text` with nonempty stdin is an error; a template
 with a task can run in a terminal without waiting for Ctrl+D.
 
-Explicit settings override template settings, then package defaults. Template
-null scalars are unspecified. Omitted temperature follows the sampling policy
-above; a numeric template temperature, including `1`, is explicit and subject to
-model validation. Library `temperature=None` overrides a stored value and omits
-the field. An explicit model keeps its provider reasoning
+Explicit settings override template settings. For the CLI model, the saved
+`default_model` comes next, then package defaults; other omitted settings follow
+package policy. Template null scalars are unspecified. Omitted temperature follows
+the sampling policy above; a numeric template temperature, including `1`, is
+explicit and subject to model validation. Library `temperature=None` overrides
+a stored value and omits the field. An explicit model keeps its provider reasoning
 default unless an effort is supplied by the template or invocation. Additional
 options merge by top-level key; an explicit nested object replaces the stored
 object. Any supplied `--system`, including an empty value, conflicts with
@@ -398,7 +401,26 @@ This replaces the token/count/cost helpers previously in `gpt_integration`.
 Raw-message preparation retains unknown-model pass-through; estimation never
 substitutes an unrelated tokenizer or guesses an unknown price.
 
-## Colors
+## Configuration
+
+Create or edit the JSON file printed by `lmt config path`, preserving existing
+fields. Add a top-level `default_model` to save your model choice:
+
+```json
+{
+    "default_model": "sol",
+    "code_block_theme": "monokai",
+    "inline_code_theme": "blue on black"
+}
+```
+
+Model selection is CLI `--model` > selected template's non-null `model` > saved
+`default_model` > package default. Registered model names and aliases work here;
+run `lmt models` to list them. Missing or null `default_model` leaves the package
+fallback unchanged. An invalid selected value fails locally before reading stdin
+or credentials; a higher-priority model overrides it. Malformed, unreadable, or
+non-object configuration is treated as empty configuration. These preferences
+apply to the CLI; library callers supply model choices explicitly.
 
 `code_block_theme` accepts the bundled `alabaster` palette or an installed Pygments
 style. Alabaster code blocks use a `#f0f0f0` background for contrast with Alabaster
@@ -406,18 +428,11 @@ terminals, preserving the palette's foreground colors.
 Unknown styles fail before a provider request when Rich formatting is used;
 choose an available style or use `--raw`. Plain output and `--tokens` do not validate
 response themes. `inline_code_theme` accepts a Rich foreground/background style.
-Only the top-level keys below configure these colors; nested `shellgenius` settings
+Only the top-level theme keys above configure these colors; nested `shellgenius` settings
 belong to ShellGenius.
 
-Theme reads use defaults without creating or changing configuration. To customize
-colors, create or edit `~/.config/lmt/config.json`, preserving any existing fields:
-
-```json
-{
-    "code_block_theme": "monokai",
-    "inline_code_theme": "blue on black"
-}
-```
+Configuration reads create or change no files. Edit the two theme fields above
+to customize colors.
 
 ## Tests
 

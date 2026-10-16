@@ -54,6 +54,19 @@ def _key_path(ctx=None):
     return _config_directory(ctx) / "keys.json"
 
 
+def _saved_default_model(config_path):
+    value = load_config(config_path).get("default_model")
+    if value is None:
+        return UNSET
+    canonical = resolve_model_name(value) if isinstance(value, str) else None
+    if canonical is None:
+        raise click.UsageError(
+            "Invalid `default_model` in config.json. "
+            "Use `lmt models` for registered model names and aliases."
+        )
+    return canonical
+
+
 def complete_template(ctx, param, incomplete):
     return [
         name for name in list_templates(_template_directory(ctx)) if name.startswith(incomplete)
@@ -242,8 +255,7 @@ def lmt(ctx):
     "--model",
     "-m",
     default=DEFAULT_MODEL,
-    help="The model to use for the requests.",
-    show_default=True,
+    help="Model: CLI > template > saved default_model > package gpt-6-luna.",
     callback=validate_model_name,
 )
 @click.option(
@@ -275,8 +287,8 @@ def lmt(ctx):
     type=click.Choice(REASONING_EFFORTS),
     help=(
         "Model-dependent reasoning effort. Use none to disable reasoning where supported. "
-        "Omitted model/effort use gpt-6-luna with none; "
-        "explicit models retain their provider default when effort is omitted."
+        "Without a CLI/template/saved model or effort, use gpt-6-luna with none; "
+        "selected models retain their provider default when effort is omitted."
     ),
 )
 @click.option(
@@ -371,6 +383,8 @@ def prompt(
         if template is not None and settings["system"] is not UNSET:
             resolve_request(template=template, **settings)
         stored = load_template(template, _template_directory()) if template is not None else None
+        if settings["model"] is UNSET and (stored is None or stored.model is None):
+            settings["model"] = _saved_default_model(_config_path())
         request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
     except (TemplateError, RequestResolutionError) as error:
         raise click.UsageError(str(error)) from error

@@ -1,4 +1,5 @@
 import io
+import json
 import sys
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -132,8 +133,9 @@ def test_prompt_help_explains_reasoning_default_and_debug_disclosure():
     assert result.exit_code == 0
     output = " ".join(result.output.split())
     assert "none to disable reasoning where supported" in output
-    assert "Omitted model/effort use gpt-6-luna with none" in output
-    assert "explicit models retain their provider default when effort is omitted" in output
+    assert "CLI > template > saved default_model > package gpt-6-luna" in output
+    assert "Without a CLI/template/saved model or effort, use gpt-6-luna with none" in output
+    assert "selected models retain their provider default when effort is omitted" in output
     assert "[none|minimal|low|medium|high|xhigh|max]" in output
     assert "Print prompts, model and requested temperature to stderr" in output
 
@@ -405,34 +407,67 @@ def test_cli_rejects_incompatible_sampling_before_key_read(monkeypatch, temperat
 
 
 @pytest.mark.parametrize(
-    "template_model, args, default_map, model, controls",
+    "template_model, config, args, default_map, model, controls",
     [
-        ("gpt-4o", [], None, "gpt-4o", {"temperature": 1}),
-        ("gpt-4o", ["-m", "gpt-6-luna"], None, "gpt-6-luna", {}),
-        ("luna", [], None, "gpt-6-luna", {}),
-        ("gpt-5.6", [], None, "gpt-5.6-sol", {}),
+        ("gpt-4o", {"default_model": "sol"}, [], None, "gpt-4o", {"temperature": 1}),
+        ("gpt-4o", {"default_model": []}, ["-m", "gpt-6-luna"], None, "gpt-6-luna", {}),
+        ("luna", {"default_model": "sol"}, [], None, "gpt-6-luna", {}),
+        ("gpt-5.6", {}, [], None, "gpt-5.6-sol", {}),
         (
             "gpt-4o",
+            {"default_model": "sol"},
             [],
             {"prompt": {"temperature": 0.7}},
             "gpt-4o",
             {"temperature": 0.7},
         ),
-        (None, [], None, "gpt-6-luna", {"reasoning_effort": "none", "temperature": 1}),
-        (None, ["--reasoning-effort", "high"], None, "gpt-6-luna", {"reasoning_effort": "high"}),
+        (None, {}, [], None, "gpt-6-luna", {"reasoning_effort": "none", "temperature": 1}),
+        (
+            None,
+            {},
+            ["--reasoning-effort", "high"],
+            None,
+            "gpt-6-luna",
+            {"reasoning_effort": "high"},
+        ),
         (
             "gpt-4o",
+            {"default_model": "sol"},
             [],
             {"prompt": {"model": "luna", "reasoning_effort": "low"}},
             "gpt-6-luna",
             {"reasoning_effort": "low"},
         ),
+        (
+            None,
+            {"default_model": None},
+            [],
+            None,
+            "gpt-6-luna",
+            {"reasoning_effort": "none", "temperature": 1},
+        ),
+        (None, {"default_model": "SoL"}, [], None, "gpt-6.1-sol", {}),
+        (None, {"default_model": "GPT-6-LUNA"}, [], None, "gpt-6-luna", {}),
+        (
+            None,
+            {"default_model": "luna"},
+            ["--reasoning-effort", "none", "--temperature", "0.7"],
+            None,
+            "gpt-6-luna",
+            {"reasoning_effort": "none", "temperature": 0.7},
+        ),
+        ("gpt-4o", {"default_model": []}, [], None, "gpt-4o", {"temperature": 1}),
     ],
 )
-def test_template_and_explicit_choices_preserve_defaults_provenance(
-    monkeypatch, tmp_path, template_model, args, default_map, model, controls
+def test_cli_model_precedence_preserves_defaults_provenance(
+    monkeypatch, tmp_path, template_model, config, args, default_map, model, controls
 ):
-
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    config_path = directory / "config.json"
+    original = json.dumps(config).encode()
+    config_path.write_bytes(original)
+    monkeypatch.setenv("HOME", str(tmp_path))
     (tmp_path / "fixture.yaml").write_text(
         f'system: "Reply concisely. "\nprompt: "Translate: "\nmodel: {template_model or "null"}\n',
         encoding="UTF-8",
@@ -466,6 +501,68 @@ def test_template_and_explicit_choices_preserve_defaults_provenance(
             **controls,
         )
     ]
+    assert config_path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "value, args",
+    [
+        ("", []),
+        (" \t", []),
+        (" sol ", []),
+        ("unknown-SYNTHETIC", ["--tokens"]),
+        ("gpt-5.4-pro", []),
+        ({"SYNTHETIC": True}, []),
+    ],
+)
+def test_selected_invalid_saved_model_precedes_stdin_key_and_estimation(
+    no_provider_or_download, monkeypatch, tmp_path, value, args
+):
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text(
+        json.dumps({"default_model": value, "private": "SYNTHETIC"}), encoding="UTF-8"
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Invalid selected model must fail before generation or estimation")
+
+    monkeypatch.setattr(cli, "execute_request", forbidden)
+    monkeypatch.setattr(cli, "display_tokens_count_and_cost", forbidden)
+    result = CliRunner().invoke(cli.lmt, [*args, "Hello"], input=UnreadableInput())
+    assert result.exit_code == 2, result.output
+    assert result.stdout == ""
+    assert result.stderr.endswith(
+        "Error: Invalid `default_model` in config.json. "
+        "Use `lmt models` for registered model names and aliases.\n"
+    )
+    assert "SYNTHETIC" not in result.stderr
+    assert not (directory / "keys.json").exists()
+
+
+def test_saved_luna_sampling_requires_none_and_inherits_template_controls(
+    no_provider_or_download, monkeypatch, tmp_path
+):
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text('{"default_model": "luna"}', encoding="UTF-8")
+    requests = []
+    monkeypatch.setattr(cli, "execute_request", lambda request, **kw: requests.append(request))
+    runner = CliRunner()
+    result = runner.invoke(cli.lmt, ["--temperature", "0.7", "Hello"], input=UnreadableInput())
+    assert result.exit_code == 2, result.output
+    assert "Temperature is not supported for `gpt-6-luna`" in result.stderr
+    assert requests == []
+
+    (directory / "templates").mkdir()
+    (directory / "templates" / "sampling.yaml").write_text(
+        "model: null\nreasoning_effort: none\ntemperature: 0.7\n", encoding="UTF-8"
+    )
+    result = runner.invoke(cli.lmt, ["-t", "sampling", "Hello"])
+    assert result.exit_code == 0, result.output
+    assert len(requests) == 1
+    assert requests[0].model == "gpt-6-luna"
+    assert requests[0].controls == {"reasoning_effort": "none", "temperature": 0.7}
 
 
 @pytest.mark.parametrize(

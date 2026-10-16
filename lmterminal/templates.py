@@ -104,7 +104,7 @@ DEFAULT_TEMPLATE_CONTENT = """# Task instructions and content are separate; no v
 system:
 prompt:
 text:
-# Null settings inherit the package defaults.
+# Null settings are unspecified.
 model:
 temperature:
 reasoning_effort:
