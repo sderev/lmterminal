@@ -37,6 +37,20 @@ Reading an existing key or leaving it unchanged does not change its permissions.
 This storage change requires reconfiguration: run `lmt key set` again after
 upgrading. Legacy `key.env` and `API_keys.json` files are neither read nor migrated.
 
+Print active resource locations, including before the resources exist:
+
+```bash
+lmt config path
+lmt key path
+lmt templates path
+lmt template path
+```
+
+The first two print the absolute `config.json` and `keys.json` file paths; the last
+two print the templates directory. Each prints one path without reading contents
+or creating files. `config` is a reserved leading command word; use
+`lmt prompt config ...` for prompt text starting with it.
+
 ## Shell completion
 
 Enable completion in the current shell. Generating completion requires no API key.
@@ -60,7 +74,7 @@ eval "$(_LMT_COMPLETE=zsh_source lmt)"
 
 Add the matching recipe to `~/.bashrc` or `~/.zshrc` to enable it in new shells.
 
-Press Tab after `lmt `, `lmt tem`, `lmt mo`, `lmt key `, or `lmt -t ` to see
+Press Tab after `lmt `, `lmt con`, `lmt tem`, `lmt mo`, `lmt key `, or `lmt -t ` to see
 commands and template names. Pressing Enter on an unregistered command prefix
 sends it as prompt text.
 
