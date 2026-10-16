@@ -1,3 +1,4 @@
+import json
 from contextlib import nullcontext
 from decimal import Decimal
 from types import SimpleNamespace
@@ -218,7 +219,13 @@ def test_validation_precedes_key_and_estimation(tokens, args, error):
     assert error in result.output
 
 
-def test_implicit_luna_estimate_has_no_tokenizer_fallback(monkeypatch):
+@pytest.mark.parametrize(
+    "config, model", [({}, "gpt-6-luna"), ({"default_model": "sol"}, "gpt-6.1-sol")]
+)
+def test_selected_estimate_has_no_tokenizer_fallback(monkeypatch, tmp_path, config, model):
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text(json.dumps(config), encoding="UTF-8")
     names = []
 
     def unknown_tokenizer(name):
@@ -228,8 +235,8 @@ def test_implicit_luna_estimate_has_no_tokenizer_fallback(monkeypatch):
     monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", unknown_tokenizer)
     result = CliRunner().invoke(cli.lmt, ["--tokens"], input="hello")
     assert result.exit_code == 1
-    assert names == ["gpt-6-luna"]
-    assert "Model: gpt-6-luna" in result.output
+    assert names == [model]
+    assert f"Model: {model}" in result.output
     assert "No known tokenizer for this model." in result.output
     assert "Request input tokens and cost: unavailable" in result.output
 
@@ -248,13 +255,28 @@ def test_invalid_template_model_before_key(monkeypatch, tmp_path, template_model
     assert "model" in result.output
 
 
-@pytest.mark.parametrize("model,expected_model", [(None, "gpt-4o"), ("5.4", "gpt-5.4")])
+@pytest.mark.parametrize(
+    "template_model, saved_model, model, expected_model",
+    [("4o", "sol", None, "gpt-4o"), ("4o", "sol", "5.4", "gpt-5.4"), (None, "4o", None, "gpt-4o")],
+)
 def test_estimate_and_transport_receive_same_prepared_values(
-    monkeypatch, tmp_path, fake_encoder, model, expected_model
+    monkeypatch, tmp_path, fake_encoder, template_model, saved_model, model, expected_model
 ):
-
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    config_path = directory / "config.json"
+    config = json.dumps(
+        {
+            "default_model": saved_model,
+            "code_block_theme": "invalid-SYNTHETIC",
+            "inline_code_theme": "invalid-SYNTHETIC",
+        }
+    ).encode()
+    config_path.write_bytes(config)
     (tmp_path / "fixture.yaml").write_text(
-        'system: "Template system."\nprompt: "Prefix:"\nmodel: "4o"\n', encoding="UTF-8"
+        'system: "Template system."\nprompt: "Prefix:"\n'
+        + (f'model: "{template_model}"\n' if template_model is not None else ""),
+        encoding="UTF-8",
     )
     monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
     requests = []
@@ -271,6 +293,7 @@ def test_estimate_and_transport_receive_same_prepared_values(
     runner = CliRunner()
     result = runner.invoke(cli.lmt, args + ["--tokens"], input="stdin text")
     assert result.exit_code == 0, result.output
+    assert not (directory / "keys.json").exists()
     monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "fixture-key")
     calls = []
 
@@ -292,6 +315,7 @@ def test_estimate_and_transport_receive_same_prepared_values(
             model=prepared.model, messages=prepared.messages, n=1, stream=False, **prepared.controls
         )
     ]
+    assert config_path.read_bytes() == config
 
 
 def test_unverified_sampling_estimates_locally_without_asserting_acceptance(real_encoder):

@@ -1,4 +1,7 @@
-"""Offline CLI walkthrough: uv run python tests/manual_cli.py [--fixture MODE] [lmt args]."""
+"""Offline CLI walkthrough with a fake provider and temporary configuration.
+
+uv run python tests/manual_cli.py [--saved-model NAME] [--fixture MODE] [lmt args]
+"""
 
 import argparse
 import json
@@ -14,6 +17,7 @@ def main():
     parser.add_argument(
         "--fixture", choices=("echo", "markdown", "partial-failure", "missing-key"), default="echo"
     )
+    parser.add_argument("--saved-model", help="Save a model preference in the temporary config.")
     options, arguments = parser.parse_known_args()
 
     def forbidden(*args, **kwargs):
@@ -40,9 +44,10 @@ def main():
         templates.mkdir(parents=True)
         (templates / "translate.yaml").write_text("prompt: Translate into English.\nmodel: 4o\n")
         (templates / "sparse.yaml").write_text("prompt: null\nunknown: false\n")
-        (directory / "config.json").write_text(
-            json.dumps({"code_block_theme": "alabaster", "inline_code_theme": "#325cc0 on #f0f0f0"})
-        )
+        config = {"code_block_theme": "alabaster", "inline_code_theme": "#325cc0 on #f0f0f0"}
+        if options.saved_model is not None:
+            config["default_model"] = options.saved_model
+        (directory / "config.json").write_text(json.dumps(config))
         if options.fixture != "missing-key":
             (directory / "keys.json").write_text('{"openai": "synthetic-key"}\n')
             (directory / "keys.json").chmod(0o600)
