@@ -312,7 +312,7 @@ def test_template_management_alias_help_and_errors(no_provider_or_download, grou
         assert "No such command 'invalid-command'" in result.output
     else:
         assert "Manage the templates." in result.output
-        for command in ("add", "delete", "edit", "list", "rename", "view"):
+        for command in ("add", "delete", "edit", "list", "path", "rename", "view"):
             assert f"  {command} " in result.output
 
 
@@ -327,6 +327,8 @@ def test_template_management_alias_in_root_help(no_provider_or_download):
     "args, expected",
     [
         (["prompt", "template", "list"], "template list"),
+        (["prompt", "config", "path"], "config path"),
+        (["con", "please"], "con please"),
         (["tem", "list"], "tem list"),
         (["temp", "list"], "temp list"),
         (["mo", "please"], "mo please"),
@@ -351,13 +353,15 @@ def test_template_management_alias_shell_completion(shell_completion, tmp_path, 
         (directory / name).write_text("prompt: Task\n", encoding="UTF-8")
     (directory / "trans-directory.yaml").mkdir()
     for words, expected in [
-        (f"lmt {group_name} ", ["add", "delete", "edit", "list", "rename", "view"]),
+        (f"lmt {group_name} ", ["add", "delete", "edit", "list", "path", "rename", "view"]),
+        (f"lmt {group_name} pa", ["path"]),
         *[
             (f"lmt {group_name} {command} trans", ["transcribe", "translate"])
             for command in ("view", "edit", "delete", "rename")
         ],
     ]:
-        assert shell_completion(words, 2 if words.endswith(" ") else 3) == expected
+        word_index = len(words.split()) if words.endswith(" ") else len(words.split()) - 1
+        assert shell_completion(words, word_index) == expected
 
 
 @pytest.mark.parametrize("command", ["lmt", "lmt prompt"])

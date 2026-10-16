@@ -46,6 +46,27 @@ def _template_directory(ctx=None):
     return _config_directory(ctx) / "templates"
 
 
+def _config_path(ctx=None):
+    return _config_directory(ctx) / "config.json"
+
+
+def _key_path(ctx=None):
+    return _config_directory(ctx) / "keys.json"
+
+
+def _saved_default_model(config_path):
+    value = load_config(config_path).get("default_model")
+    if value is None:
+        return UNSET
+    canonical = resolve_model_name(value) if isinstance(value, str) else None
+    if canonical is None:
+        raise click.UsageError(
+            "Invalid `default_model` in config.json. "
+            "Use `lmt models` for registered model names and aliases."
+        )
+    return canonical
+
+
 def complete_template(ctx, param, incomplete):
     return [
         name for name in list_templates(_template_directory(ctx)) if name.startswith(incomplete)
@@ -216,6 +237,8 @@ def lmt(ctx):
     Use lmt prompt --help for prompt options, including --reasoning-effort.
     Reasoning effort is model-dependent.
 
+    For prompt text starting with a command word, use lmt prompt config ...
+
     Documentation: https://github.com/sderev/lmterminal
     """
     _config_directory()
@@ -232,8 +255,7 @@ def lmt(ctx):
     "--model",
     "-m",
     default=DEFAULT_MODEL,
-    help="The model to use for the requests.",
-    show_default=True,
+    help="Model: CLI > template > saved default_model > package gpt-6-luna.",
     callback=validate_model_name,
 )
 @click.option(
@@ -265,8 +287,8 @@ def lmt(ctx):
     type=click.Choice(REASONING_EFFORTS),
     help=(
         "Model-dependent reasoning effort. Use none to disable reasoning where supported. "
-        "Omitted model/effort use gpt-6-luna with none; "
-        "explicit models retain their provider default when effort is omitted."
+        "Without a CLI/template/saved model or effort, use gpt-6-luna with none; "
+        "selected models retain their provider default when effort is omitted."
     ),
 )
 @click.option(
@@ -361,6 +383,8 @@ def prompt(
         if template is not None and settings["system"] is not UNSET:
             resolve_request(template=template, **settings)
         stored = load_template(template, _template_directory()) if template is not None else None
+        if settings["model"] is UNSET and (stored is None or stored.model is None):
+            settings["model"] = _saved_default_model(_config_path())
         request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
     except (TemplateError, RequestResolutionError) as error:
         raise click.UsageError(str(error)) from error
@@ -412,8 +436,8 @@ def prompt(
         ctx.exit(display_tokens_count_and_cost(request))
     execute_request(
         request,
-        config_path=_config_directory() / "config.json",
-        key_path=_config_directory() / "keys.json",
+        config_path=_config_path(),
+        key_path=_key_path(),
         stream=not no_stream,
         raw=raw,
         diagnostics=diagnostics,
@@ -439,6 +463,17 @@ def models():
 
 
 @lmt.group()
+def config():
+    """Locate the ordinary configuration file."""
+
+
+@config.command("path")
+def print_config_path():
+    """Print the absolute config.json file path, even if it does not exist."""
+    click.echo(_config_path().absolute())
+
+
+@lmt.group()
 def templates():
     """
     Manage the templates.
@@ -446,6 +481,12 @@ def templates():
 
 
 lmt.add_command(templates, name="template")
+
+
+@templates.command("path")
+def print_templates_path():
+    """Print the absolute templates directory path, even if it does not exist."""
+    click.echo(_template_directory().absolute())
 
 
 @templates.command("list")
@@ -477,9 +518,7 @@ def view_template(template):
         click.echo(content, nl=False)
         return
     try:
-        theme = resolve_code_theme(
-            code_block_theme(load_config(_config_directory() / "config.json"))
-        )
+        theme = resolve_code_theme(code_block_theme(load_config(_config_path())))
     except ValueError:
         raise click.ClickException(
             "Template view code theme is unavailable. Set `code_block_theme` to "
@@ -599,6 +638,12 @@ def key():
     """
 
 
+@key.command("path")
+def print_key_path():
+    """Print the absolute keys.json file path, even if it does not exist."""
+    click.echo(_key_path().absolute())
+
+
 @key.command(name="edit")
 def edit_api_key():
     """
@@ -616,7 +661,7 @@ def set_api_key():
 
 
 def _manage_key(*, edit):
-    path = _config_directory() / "keys.json"
+    path = _key_path()
     try:
         existing = read_api_key(path)
         if existing and not edit:
