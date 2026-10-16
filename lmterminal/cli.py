@@ -46,6 +46,14 @@ def _template_directory(ctx=None):
     return _config_directory(ctx) / "templates"
 
 
+def _config_path(ctx=None):
+    return _config_directory(ctx) / "config.json"
+
+
+def _key_path(ctx=None):
+    return _config_directory(ctx) / "keys.json"
+
+
 def complete_template(ctx, param, incomplete):
     return [
         name for name in list_templates(_template_directory(ctx)) if name.startswith(incomplete)
@@ -215,6 +223,8 @@ def lmt(ctx):
 
     Use lmt prompt --help for prompt options, including --reasoning-effort.
     Reasoning effort is model-dependent.
+
+    For prompt text starting with a command word, use lmt prompt config ...
 
     Documentation: https://github.com/sderev/lmterminal
     """
@@ -412,8 +422,8 @@ def prompt(
         ctx.exit(display_tokens_count_and_cost(request))
     execute_request(
         request,
-        config_path=_config_directory() / "config.json",
-        key_path=_config_directory() / "keys.json",
+        config_path=_config_path(),
+        key_path=_key_path(),
         stream=not no_stream,
         raw=raw,
         diagnostics=diagnostics,
@@ -439,6 +449,17 @@ def models():
 
 
 @lmt.group()
+def config():
+    """Locate the ordinary configuration file."""
+
+
+@config.command("path")
+def print_config_path():
+    """Print the absolute config.json file path, even if it does not exist."""
+    click.echo(_config_path().absolute())
+
+
+@lmt.group()
 def templates():
     """
     Manage the templates.
@@ -446,6 +467,12 @@ def templates():
 
 
 lmt.add_command(templates, name="template")
+
+
+@templates.command("path")
+def print_templates_path():
+    """Print the absolute templates directory path, even if it does not exist."""
+    click.echo(_template_directory().absolute())
 
 
 @templates.command("list")
@@ -477,9 +504,7 @@ def view_template(template):
         click.echo(content, nl=False)
         return
     try:
-        theme = resolve_code_theme(
-            code_block_theme(load_config(_config_directory() / "config.json"))
-        )
+        theme = resolve_code_theme(code_block_theme(load_config(_config_path())))
     except ValueError:
         raise click.ClickException(
             "Template view code theme is unavailable. Set `code_block_theme` to "
@@ -599,6 +624,12 @@ def key():
     """
 
 
+@key.command("path")
+def print_key_path():
+    """Print the absolute keys.json file path, even if it does not exist."""
+    click.echo(_key_path().absolute())
+
+
 @key.command(name="edit")
 def edit_api_key():
     """
@@ -616,7 +647,7 @@ def set_api_key():
 
 
 def _manage_key(*, edit):
-    path = _config_directory() / "keys.json"
+    path = _key_path()
     try:
         existing = read_api_key(path)
         if existing and not edit:

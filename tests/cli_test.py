@@ -11,21 +11,84 @@ from lmterminal import cli, cli_output
 from lmterminal.request_options import DEFAULT_MODEL, prepare_request
 
 
+class UnreadableInput(io.BytesIO):
+    def read(self, size=-1):
+        if size == 0:
+            return b""
+        pytest.fail("Must not read stdin")
+
+    read1 = read
+
+
 def test_top_level_help_points_to_prompt_controls():
     result = CliRunner().invoke(cli.lmt, ["--help"])
     assert result.exit_code == 0
     assert "lmt prompt --help" in result.output
     assert "--reasoning-effort" in result.output
     assert "model-dependent" in result.output
+    assert "lmt prompt config ..." in result.output
+
+
+@pytest.mark.parametrize(
+    "command, resource",
+    [
+        ("config", "config.json"),
+        ("key", "keys.json"),
+        ("templates", "templates"),
+        ("template", "templates"),
+    ],
+)
+def test_resource_paths_do_not_read_or_create(
+    no_provider_or_download, monkeypatch, tmp_path, command, resource
+):
+    home = tmp_path / "home with spaces"
+    monkeypatch.setenv("HOME", str(home))
+    directory = home / ".config" / "lmt"
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Path commands must not read resources or open an editor/provider")
+
+    for module, names in [
+        (
+            cli,
+            ("load_config", "load_template", "list_templates", "read_api_key", "execute_request"),
+        ),
+        (cli_output, ("load_config", "read_api_key")),
+        (cli.click, ("edit",)),
+    ]:
+        for name in names:
+            monkeypatch.setattr(module, name, forbidden)
+
+    runner = CliRunner()
+    for seeded in (False, True):
+        if seeded:
+            (directory / "templates").mkdir(parents=True)
+            contents = {
+                directory / "config.json": b"{invalid JSON\n",
+                directory / "keys.json": b"[invalid keys\n",
+                directory / "templates" / "fixture.yaml": b"prompt: [invalid YAML\n",
+            }
+            for path, content in contents.items():
+                path.write_bytes(content)
+        result = runner.invoke(cli.lmt, [command, "path"], input=UnreadableInput())
+        assert result.exit_code == 0, result.output
+        assert result.stdout_bytes == f"{directory / resource}\n".encode()
+        assert result.stderr == ""
+        if seeded:
+            assert {path: path.read_bytes() for path in contents} == contents
+        else:
+            assert not home.exists()
 
 
 @pytest.mark.parametrize(
     "words, word_index, expected",
     [
-        ("lmt ", 1, ["key", "models", "prompt", "template", "templates"]),
+        ("lmt ", 1, ["config", "key", "models", "prompt", "template", "templates"]),
+        ("lmt con", 1, ["config"]),
         ("lmt tem", 1, ["template", "templates"]),
         ("lmt mo", 1, ["models"]),
-        ("lmt key ", 2, ["edit", "set"]),
+        ("lmt config ", 2, ["path"]),
+        ("lmt key ", 2, ["edit", "path", "set"]),
         ("lmt --tex", 1, ["--text"]),
         ("lmt prompt --tex", 2, ["--text"]),
     ],
