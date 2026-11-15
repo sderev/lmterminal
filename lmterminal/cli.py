@@ -23,9 +23,9 @@ from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_n
 from .request_options import DEFAULT_MODEL, UNSET, validate_request_options
 from .resolution import RequestResolutionError, resolve_request
 from .storage import StorageError, load_config, read_api_key, write_key
+from .template_editor import edit_template_file
 from .template_view import serialize_saved_template
 from .templates import (
-    DEFAULT_TEMPLATE_CONTENT,
     TemplateError,
     list_templates,
     load_template,
@@ -535,23 +535,18 @@ def edit(template):
     Edit a template.
     """
     template_file = _template_path(template)
-    if template_file.exists():
-        original_file_content = template_file.read_text()
-        click.edit(filename=str(template_file))
-
-        if original_file_content == template_file.read_text():
-            click.echo("No changes were made.")
-        else:
-            click.echo(
-                f"{click.style('Success!', fg='green')} Template"
-                f" {click.style(template, fg='green')} was updated."
-            )
-
-    else:
+    if not template_file.exists():
         raise _CliError(
             f"Template `{click.style(template, fg='red')}` does not exist. "
             f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to create it."
         )
+    if edit_template_file(template, template_file, create=False):
+        click.echo(
+            f"{click.style('Success!', fg='green')} Template"
+            f" {click.style(template, fg='green')} was updated."
+        )
+    else:
+        click.echo("No changes were made.")
 
 
 @templates.command("add")
@@ -563,17 +558,9 @@ def add_template(template):
     if not template:
         template = click.prompt("Template name")
     template_file = _template_path(template)
-    template_file.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with template_file.open("x", encoding="UTF-8") as file:
-            file.write(DEFAULT_TEMPLATE_CONTENT)
-    except FileExistsError as error:
-        raise click.UsageError(f"Template `{template}` already exists.") from error
-    click.edit(filename=str(template_file))
-    if template_file.read_text(encoding="UTF-8") == DEFAULT_TEMPLATE_CONTENT:
+    if not edit_template_file(template, template_file, create=True):
         click.secho("Aborting: ", fg="red", nl=False)
         click.echo("The template has not been created because no changes were made.")
-        template_file.unlink()
     else:
         click.echo(
             f"{click.style('Success!', fg='green')} Template"

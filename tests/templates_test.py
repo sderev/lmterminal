@@ -1,4 +1,5 @@
 import io
+import stat
 import sys
 import traceback
 from pathlib import Path
@@ -413,6 +414,11 @@ def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, t
     content = "prompt: Translate into French.\n"
 
     def edit_draft(*, filename):
+        candidate = Path(filename)
+        assert candidate.read_bytes() == templates.DEFAULT_TEMPLATE_CONTENT.encode()
+        assert stat.S_IMODE(candidate.stat().st_mode) == 0o600
+        assert stat.S_IMODE(candidate.parent.stat().st_mode) == 0o700
+        assert templates.list_templates(directory) == []
         if saved:
             Path(filename).write_text(content, encoding="UTF-8")
 
@@ -428,6 +434,7 @@ def test_template_add_saved_or_unchanged(no_provider_or_download, monkeypatch, t
     else:
         assert "no changes were made" in result.output
         assert not template_file.exists()
+    assert list((directory / ".drafts").iterdir()) == []
 
 
 @pytest.mark.parametrize("saved", [True, False], ids=["saved", "unchanged"])
@@ -438,12 +445,15 @@ def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, 
     template_file = directory / "translate.yaml"
     original = "# Café\r\nprompt: Translate into English.\r\n".encode()
     template_file.write_bytes(original)
+    template_file.chmod(0o640)
     other = directory / "other.yaml"
     other_content = b"prompt: Keep this template.\n"
     other.write_bytes(other_content)
     content = "prompt: Translate into French.\n"
 
     def edit_template(*, filename):
+        assert Path(filename).read_bytes() == original
+        assert template_file.read_bytes() == original
         if saved:
             Path(filename).write_text(content, encoding="UTF-8")
 
@@ -452,6 +462,8 @@ def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, 
 
     assert result.exit_code == 0, result.output
     assert other.read_bytes() == other_content
+    assert stat.S_IMODE(template_file.stat().st_mode) == 0o640
+    assert list((directory / ".drafts").iterdir()) == []
     if saved:
         assert "was updated" in result.output
         assert template_file.read_bytes() == content.encode()
@@ -460,6 +472,126 @@ def test_template_edit_saved_or_unchanged(no_provider_or_download, monkeypatch, 
         assert "No changes were made" in result.output
         assert template_file.read_bytes() == original
         assert load_template("translate", directory).prompt == "Translate into English."
+
+
+@pytest.mark.parametrize("command", ["add", "edit"])
+@pytest.mark.parametrize("editor_fails", [False, True], ids=["invalid-save", "save-then-fail"])
+def test_template_failed_saves_retain_private_drafts(monkeypatch, tmp_path, command, editor_fails):
+    directory = tmp_path / "templates"
+    directory.mkdir()
+    monkeypatch.setattr(cli, "_template_directory", lambda: directory)
+    active = directory / "task.yaml"
+    original = b"# Original\r\nprompt: Original task\r\n"
+    if command == "edit":
+        active.write_bytes(original)
+    saved = b"prompt: Saved task\n" if editor_fails else b"promt: PRIVATE\n"
+
+    def edit_candidate(*, filename):
+        assert active.read_bytes() == original if command == "edit" else not active.exists()
+        Path(filename).write_bytes(saved)
+        if editor_fails:
+            raise cli.click.ClickException("Editing failed")
+
+    monkeypatch.setattr(cli.click, "edit", edit_candidate)
+    result = CliRunner().invoke(cli.lmt, ["templates", command, "task"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Success!" not in result.output
+    assert "PRIVATE" not in result.stderr
+    if not editor_fails:
+        assert "`promt`" in result.stderr
+    assert active.read_bytes() == original if command == "edit" else not active.exists()
+    candidates = list((directory / ".drafts").glob("*/task.yaml"))
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert str(candidate) in result.stderr
+    assert candidate.read_bytes() == saved
+    assert stat.S_IMODE(candidate.stat().st_mode) == 0o600
+    assert stat.S_IMODE(candidate.parent.stat().st_mode) == 0o700
+    assert templates.list_templates(directory) == (["task"] if command == "edit" else [])
+
+
+def test_missing_editor_leaves_add_available_for_retry(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+
+    def unavailable(**kwargs):
+        raise cli.click.ClickException("Cannot launch editor")
+
+    monkeypatch.setattr(cli.click, "edit", unavailable)
+    result = CliRunner().invoke(cli.lmt, ["templates", "add", "task"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert not (tmp_path / "task.yaml").exists()
+    assert list((tmp_path / ".drafts").iterdir()) == []
+    monkeypatch.setattr(
+        cli.click, "edit", lambda **kw: Path(kw["filename"]).write_bytes(b"prompt: Task")
+    )
+    assert CliRunner().invoke(cli.lmt, ["templates", "add", "task"]).exit_code == 0
+
+
+def test_template_edit_repairs_invalid_symlink_target(monkeypatch, tmp_path):
+    directory = tmp_path / "templates"
+    directory.mkdir()
+    target = tmp_path / "original.yaml"
+    original = b"promt: invalid original\r\n"
+    target.write_bytes(original)
+    target.chmod(0o640)
+    link = directory / "task.yaml"
+    link.symlink_to(target)
+    monkeypatch.setattr(cli, "_template_directory", lambda: directory)
+
+    def repair(*, filename):
+        assert Path(filename).read_bytes() == original
+        assert target.read_bytes() == original
+        Path(filename).write_bytes(b"prompt: Repaired\n")
+
+    monkeypatch.setattr(cli.click, "edit", repair)
+    result = CliRunner().invoke(cli.lmt, ["templates", "edit", "task"])
+    assert result.exit_code == 0, result.output
+    assert link.is_symlink()
+    assert target.read_bytes() == b"prompt: Repaired\n"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
+
+
+@pytest.mark.parametrize("command", ["add", "edit"])
+def test_template_publication_conflict_preserves_both_saves(monkeypatch, tmp_path, command):
+    monkeypatch.setattr(cli, "_template_directory", lambda: tmp_path)
+    active = tmp_path / "task.yaml"
+    if command == "edit":
+        active.write_bytes(b"prompt: Original\n")
+
+    def save(*, filename):
+        Path(filename).write_bytes(b"prompt: Edited\n")
+        active.write_bytes(b"prompt: External change\n")
+
+    monkeypatch.setattr(cli.click, "edit", save)
+    result = CliRunner().invoke(cli.lmt, ["templates", command, "task"])
+    assert result.exit_code == 1
+    assert "retained at:" in result.stderr
+    assert active.read_bytes() == b"prompt: External change\n"
+    assert next((tmp_path / ".drafts").glob("*/task.yaml")).read_bytes() == b"prompt: Edited\n"
+
+
+def test_unknown_field_diagnostics_name_typos_without_values(tmp_path):
+    (tmp_path / "bad.yaml").write_text("promt: PRIVATE\n")
+    with pytest.raises(TemplateError) as error:
+        load_template("bad", tmp_path)
+    assert "`promt`" in str(error.value)
+    assert "PRIVATE" not in str(error.value)
+    for field in Template.__dataclass_fields__:
+        assert f"`{field}`" in str(error.value)
+
+
+def test_unknown_field_diagnostics_omit_arbitrary_keys(tmp_path):
+    content = {"bad\x1b[31mPRIVATE": "PRIVATE", 13: "PRIVATE", "sk_private": "PRIVATE"}
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump(content))
+    with pytest.raises(TemplateError) as error:
+        load_template("bad", tmp_path)
+    message = str(error.value)
+    assert "field names omitted" in message
+    assert "PRIVATE" not in message
+    assert "sk_private" not in message
+    assert "\x1b" not in message
 
 
 @pytest.mark.parametrize("confirmed", [True, False], ids=["confirmed", "declined"])

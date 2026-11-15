@@ -284,8 +284,18 @@ lmt templates --help
 Both spellings select template management. To send a prompt starting with the word
 `template`, use the explicit prompt command: `lmt prompt template ...`.
 
-`lmt templates add` opens the editor selected by `VISUAL` or `EDITOR`; an
-unchanged draft is removed. With shell completion enabled, template names complete
+`lmt templates add` and `edit` open the editor selected by `VISUAL` or `EDITOR`.
+They edit a private draft and validate it before publishing. Unchanged drafts are
+removed: add creates no template, and edit keeps the original bytes. Invalid saves
+or editor failures leave the active template absent or unchanged and exit nonzero.
+Changed drafts remain in `templates/.drafts/<unique-directory>/<name>.yaml`; stderr
+prints their absolute recovery path. These drafts are excluded from listing and
+completion. Open the retained file to recover your saved work, then copy its
+corrected contents into a new `lmt templates add NAME` or `edit NAME` session.
+Valid adds refuse occupied names; valid edits replace the file while preserving
+its permissions and following an existing symlink's target.
+
+With shell completion enabled, template names complete
 for `-t` and `view`, `edit`, `delete`, and `rename` under either group spelling.
 
 `lmt templates view translate` shows only saved fields, in file order, with

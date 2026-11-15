@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from math import isfinite
@@ -92,8 +93,24 @@ def load_template(name: str, directory: Path) -> Template:
         raise TemplateError(
             f"Template `{name}`: replace `user` with `prompt` for instructions or `text` for content."
         )
-    if any(key not in Template.__dataclass_fields__ for key in content):
-        raise TemplateError(f"Template `{name}` contains an unsupported field.")
+    unknown = [key for key in content if key not in Template.__dataclass_fields__]
+    if unknown:
+        # Only bounded schema-like identifiers belong in terminal diagnostics.
+        names = [
+            key
+            for key in unknown
+            if isinstance(key, str)
+            and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", key)
+            and not key.startswith(("sk_", "sess_"))
+        ][:3]
+        detail = ", ".join(f"`{key}`" for key in names)
+        if len(names) != len(unknown):
+            detail += (", " if detail else "") + "other field names omitted"
+        accepted = ", ".join(f"`{key}`" for key in Template.__dataclass_fields__)
+        raise TemplateError(
+            f"Template `{name}` contains an unsupported field: {detail}. "
+            f"Accepted fields: {accepted}."
+        )
     try:
         return Template(**content)
     except TemplateError as error:
