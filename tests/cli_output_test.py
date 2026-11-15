@@ -1,6 +1,7 @@
 import io
 import sys
 from contextlib import nullcontext
+from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -294,6 +295,79 @@ def test_generate_response_non_stream_preserves_plain_text_and_response(monkeypa
     assert content == text
     assert isinstance(response_time, float)
     assert response_payload is response
+
+
+def test_markdown_burst_refreshes_are_bounded_and_final_text_is_complete(monkeypatch):
+    _prepare_generate_response(monkeypatch)
+    output = _use_terminal(monkeypatch)
+    now = [0.0]
+    monkeypatch.setattr(cli_output, "monotonic", lambda: now[0])
+    refreshes = []
+    live_type = cli_output.Live
+
+    class ObservedLive(live_type):
+        def refresh(self):
+            super().refresh()
+            refreshes.append((now[0], output.buffer.getvalue()))
+
+    monkeypatch.setattr(cli_output, "Live", ObservedLive)
+    parts = ["FIRST ", *(f"part{i:03d} " for i in range(180)), "FINAL"]
+    checkpoints = []
+
+    def events():
+        # Metadata and empty events must not render a response.
+        yield SimpleNamespace(choices=[], usage=SimpleNamespace(total_tokens=0))
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=""))])
+        assert b"FIRST" not in output.buffer.getvalue()
+        for index, part in enumerate(parts):
+            now[0] = index / 1000
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=part))])
+            if index == 0:
+                assert b"FIRST" in output.buffer.getvalue()
+                assert refreshes[-1][0] == 0.0
+            elif index == 50:
+                # Capture visible progress while the producer still has later text.
+                checkpoints.append(output.buffer.getvalue())
+        assert b"FINAL" not in output.buffer.getvalue()  # Still coalesced on stream end.
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+    )
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    content, _, _ = _execute(prompt=[])
+
+    assert content == "".join(parts) + "\n"
+    assert b"FINAL" in output.buffer.getvalue()
+    assert b"part049" in checkpoints[0], "Later text must be visible after 50 ms during streaming"
+    # Includes Live's initial blank and final refreshes; no wall-clock threshold.
+    assert 3 <= len(refreshes) <= 7
+    periodic = [instant for instant, data in refreshes[1:-1] if b"FIRST" in data]
+    assert all(later - earlier >= 0.05 for earlier, later in pairwise(periodic))
+
+
+@pytest.mark.parametrize(
+    "interruption", [RuntimeError("Synthetic interruption"), KeyboardInterrupt()]
+)
+def test_markdown_interruption_renders_coalesced_partial_text(monkeypatch, interruption):
+    _prepare_generate_response(monkeypatch)
+    output = _use_terminal(monkeypatch)
+    monkeypatch.setattr(cli_output, "monotonic", lambda: 0.0)
+
+    def events():
+        for text in ("FIRST ", "PARTIAL-TAIL"):
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))])
+        assert b"FIRST" in output.buffer.getvalue()
+        assert b"PARTIAL-TAIL" not in output.buffer.getvalue()
+        raise interruption
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+    )
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    expected = KeyboardInterrupt if isinstance(interruption, KeyboardInterrupt) else SystemExit
+    with pytest.raises(expected):
+        _execute(prompt=[])
+    assert b"FIRST PARTIAL-TAIL" in output.buffer.getvalue()
 
 
 @pytest.mark.parametrize(

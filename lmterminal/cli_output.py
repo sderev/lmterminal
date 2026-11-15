@@ -2,6 +2,7 @@
 
 import sys
 from contextlib import nullcontext
+from time import monotonic
 
 import click
 from rich.console import Console
@@ -17,6 +18,7 @@ from .storage import StorageError, load_config, read_api_key
 BLUE = "\x1b[34m"
 RED = "\x1b[91m"
 RESET = "\x1b[0m"
+_MARKDOWN_REFRESH_INTERVAL = 1 / 20
 
 
 def code_block_theme(config):
@@ -58,6 +60,8 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
     import openai
 
     markdown_stream = ""
+    markdown_pending = False
+    last_markdown_refresh = None
     live_context = (
         Live("", console=console, auto_refresh=False) if use_live_markdown else nullcontext()
     )
@@ -70,10 +74,16 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
     with live_context as live:
 
         def update_markdown_stream(chunk: str) -> None:
-            nonlocal markdown_stream
+            nonlocal markdown_stream, markdown_pending, last_markdown_refresh
             if not chunk:
                 return
             markdown_stream += chunk
+            markdown_pending = True
+            if (
+                last_markdown_refresh is not None
+                and monotonic() - last_markdown_refresh < _MARKDOWN_REFRESH_INTERVAL
+            ):
+                return
             if diagnostics:
                 diagnostics.first("first text submitted to Markdown", level=2)
             live.update(
@@ -82,6 +92,8 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
             )
             if diagnostics:
                 diagnostics.first("first Markdown refresh returned")
+            last_markdown_refresh = monotonic()
+            markdown_pending = False
 
         def emit_text(chunk):
             if use_live_markdown:
@@ -137,6 +149,12 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
         except Exception as error:  # noqa: BLE001
             click.echo(f"{RED}Error:{RESET} {error}", err=True)
             sys.exit(1)
+
+        finally:
+            # Live refreshes on exit, including errors and Ctrl+C. Give it any
+            # text coalesced since the last refresh before that final render.
+            if use_live_markdown and markdown_pending:
+                live.update(Markdown(markdown_stream, code_theme=selected_theme))
 
     if diagnostics:
         diagnostics.output_complete()

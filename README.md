@@ -160,6 +160,8 @@ lmt --no-stream "Say hello"
 In a terminal, run `lmt` without a prompt to enter multiple lines; press Ctrl+D to
 send. `--raw` disables formatting. Streaming to pipes or terminals that cannot
 render interactive Markdown produces plain text, including with `--rich`.
+Interactive Markdown shows the first text immediately, then refreshes at most
+20 times per second, with a final render when streaming stops.
 `--no-stream` waits for the complete response and prints plain text.
 Successful responses redirected to files or pipes end with a newline in either
 stream mode, including with `--raw`. A missing final newline is added without
