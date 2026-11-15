@@ -8,16 +8,59 @@ import json
 import os
 import socket
 import tempfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
+
+
+def response_parts(fixture, text):
+    if fixture in {"long-code", "scrollback-failure", "scrollback-interrupt"}:
+        return (
+            ["Intro `fib`.\n\n```python\n"]
+            + [f'def item_{n}(): return "TRACE-{n:03d}"  # café 漢字\n' for n in range(60)]
+            + ["```\n\nDONE-CODE\n"]
+        )
+    if fixture == "long-paragraph":
+        return [f"TRACE-{n:03d} **bold** `inline` café 漢字 " for n in range(100)] + ["END\n"]
+    if fixture == "list-table":
+        return (
+            [f"{n + 1}. TRACE-{n:03d} List **bold** `inline`\n" for n in range(30)]
+            + ["\n| Item | Value |\n| --- | --- |\n"]
+            + [f"| TRACE-{n:03d} | **row** {n} `inline` |\n" for n in range(30, 60)]
+            + ["| A later wide column | a later wide value |\n\nDONE-TABLE\n"]
+        )
+    if fixture == "markdown":
+        return ['Inline `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n']
+    return [text[:3], text[3:]]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--fixture",
-        choices=("echo", "markdown", "partial-failure", "missing-key", "auth", "pipe"),
+        choices=(
+            "echo",
+            "markdown",
+            "partial-failure",
+            "missing-key",
+            "auth",
+            "pipe",
+            "long-code",
+            "long-paragraph",
+            "list-table",
+            "scrollback-failure",
+            "scrollback-interrupt",
+        ),
         default="echo",
+    )
+    parser.add_argument(
+        "--delay", type=float, default=0.08, help="Seconds between long-fixture chunks."
+    )
+    parser.add_argument(
+        "--hold", type=float, default=3.0, help="Seconds to hold a long fixture open."
+    )
+    parser.add_argument(
+        "--code-theme", default="alabaster", help="Fixture code_block_theme preference."
     )
     parser.add_argument("--saved-model", help="Save a model preference in the temporary config.")
     options, arguments = parser.parse_known_args()
@@ -46,7 +89,10 @@ def main():
         templates.mkdir(parents=True)
         (templates / "translate.yaml").write_text("prompt: Translate into English.\nmodel: 4o\n")
         (templates / "sparse.yaml").write_text("prompt: null\nunknown: false\n")
-        config = {"code_block_theme": "alabaster", "inline_code_theme": "#325cc0 on #f0f0f0"}
+        config = {
+            "code_block_theme": options.code_theme,
+            "inline_code_theme": "#325cc0 on #f0f0f0",
+        }
         if options.saved_model is not None:
             config["default_model"] = options.saved_model
         (directory / "config.json").write_text(json.dumps(config))
@@ -66,8 +112,14 @@ def main():
                     body={"message": "Invalid PRIVATE key"},
                 )
             text = kwargs["messages"][-1]["content"]
-            if options.fixture == "markdown":
-                text = 'Inline `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n'
+            parts = response_parts(options.fixture, text)
+            paced = options.fixture in {
+                "long-code",
+                "long-paragraph",
+                "list-table",
+                "scrollback-failure",
+                "scrollback-interrupt",
+            }
 
             def events():
                 if options.fixture == "pipe":
@@ -81,14 +133,27 @@ def main():
                         choices=[SimpleNamespace(delta=SimpleNamespace(content="partial"))]
                     )
                     raise RuntimeError("Synthetic stream interruption")
-                for part in (text[:3], text[3:]):
+                for part in parts:
+                    if paced:
+                        time.sleep(options.delay)
                     yield SimpleNamespace(
                         choices=[SimpleNamespace(delta=SimpleNamespace(content=part))]
                     )
+                if options.fixture in {"scrollback-failure", "scrollback-interrupt"}:
+                    # Deliver one last chunk without a pause, under the refresh cadence.
+                    yield SimpleNamespace(
+                        choices=[SimpleNamespace(delta=SimpleNamespace(content="COALESCED-TAIL"))]
+                    )
+                    if options.fixture == "scrollback-failure":
+                        raise RuntimeError("Synthetic stream interruption")
+                if paced:
+                    time.sleep(options.hold)
 
             if kwargs["stream"]:
                 return events()
-            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="".join(parts)))]
+            )
 
         class FixtureClient:
             chat = SimpleNamespace(completions=SimpleNamespace(create=create))

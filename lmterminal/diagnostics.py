@@ -2,6 +2,7 @@
 
 import sys
 import time
+from contextlib import contextmanager
 
 
 class RequestDiagnostics:
@@ -14,14 +15,33 @@ class RequestDiagnostics:
         self.stderr = stderr if stderr is not None else sys.stderr
         self.started = self.clock()
         self.times = {}
+        self._deferred = None
+
+    @contextmanager
+    def defer_terminal_output(self):
+        """Keep terminal timings until a temporary preview restores the screen."""
+        if not getattr(self.stderr, "isatty", lambda: False)():
+            yield
+            return
+        self._deferred = []
+        try:
+            yield
+        finally:
+            lines, self._deferred = self._deferred, None
+            self.stderr.write("".join(lines))
+            self.stderr.flush()
 
     def mark(self, event, *, level=1, detail=""):
         now = self.clock()
         self.times[event] = now
         if self.verbosity >= level:
             suffix = f" {detail}" if detail else ""
-            self.stderr.write(f"[lmt +{now - self.started:.3f}s] {event}{suffix}\n")
-            self.stderr.flush()
+            line = f"[lmt +{now - self.started:.3f}s] {event}{suffix}\n"
+            if self._deferred is not None:
+                self._deferred.append(line)
+            else:
+                self.stderr.write(line)
+                self.stderr.flush()
 
     def first(self, event, *, level=1, detail=""):
         if event not in self.times:

@@ -161,7 +161,12 @@ In a terminal, run `lmt` without a prompt to enter multiple lines; press Ctrl+D 
 send. `--raw` disables formatting. Streaming to pipes or terminals that cannot
 render interactive Markdown produces plain text, including with `--rich`.
 Interactive Markdown shows the first text immediately, then refreshes at most
-20 times per second, with a final render when streaming stops.
+20 times per second. A formatted moving tail appears on a temporary alternate
+screen, hiding the preceding shell screen while streaming. There is no preview
+scrolling UI. On completion, interruption or provider failure, the normal screen
+returns and the full received response is printed once into terminal scrollback.
+Earlier preview text becomes normal scrollback only when streaming stops. Resizing
+catches up on the next refresh; rendering still lays out the full received Markdown.
 `--no-stream` waits for the complete response and prints plain text.
 Successful responses redirected to files or pipes end with a newline in either
 stream mode, including with `--raw`. A missing final newline is added without
@@ -174,8 +179,8 @@ nonzero. Missing templates in `edit`, `delete`, or `rename`, and `key set` when 
 key already exists, exit with status 1. Redirected errors are plain text; terminal
 errors retain color. Provider status errors show the provider's message when
 available, otherwise an HTTP-status summary. Authentication errors use fixed
-guidance; run `lmt key edit` to replace a stored key. Failed streams preserve text
-already received without adding a final newline. A closed output pipe exits
+guidance; run `lmt key edit` to replace a stored key. Failed plain-text streams preserve
+text already received without adding a final newline. A closed output pipe exits
 quietly with status 1.
 
 In Vim, filter selected lines with `:'<,'>!lmt "Rewrite this paragraph"`.
@@ -211,6 +216,9 @@ text is reported as `unavailable`, including content-free tool responses.
 `--no-stream` reports full-response reception rather than stream events.
 `request_s` spans dispatch through response consumption, including output work
 during streaming; `output complete` follows final rendering or output flushing.
+Diagnostics sent to a terminal during the temporary Markdown preview are held
+until the normal screen returns, with their original timestamps and stderr
+channel. Diagnostics redirected to a file or pipe are written immediately.
 
 Timing diagnostics never print prompts, response text, headers, keys, full URLs or
 arbitrary request options, even at `-vvv`. The separate `--debug` option prints
@@ -489,6 +497,12 @@ uv run python tests/manual_cli.py --fixture markdown 'Hello'
 uv run python tests/manual_cli.py templates view sparse
 uv run python tests/manual_cli.py --fixture missing-key --raw 'Hello'
 uv run python tests/manual_cli.py --fixture auth 'Hello' 2> auth-error.txt
+uv run python tests/manual_cli.py --fixture long-code 'Hello'
+uv run python tests/manual_cli.py --fixture long-paragraph 'Hello'
+uv run python tests/manual_cli.py --fixture list-table 'Hello'
+uv run python tests/manual_cli.py --fixture scrollback-failure -vvv 'Hello'
+uv run python tests/manual_cli.py --fixture scrollback-interrupt -vvv 'Hello'
+uv run python tests/manual_cli.py --fixture long-code --code-theme monokai -vvv 'Hello' 2> timings.log
 ```
 
 Expect content, `___`, then template/task instructions in the first command;
@@ -500,6 +514,18 @@ stderr-only missing-key error; and status 1 with plain key-edit guidance only in
 colors. These commands never call a provider. The automated
 counterparts live in `templates_test.py`, `cli_test.py`, `cli_output_test.py`,
 `template_view_test.py` and `keys_test.py`; visual inspection remains a manual step.
+
+Run the long fixtures in an 80×24 terminal. Before they finish, check that later
+`TRACE-...` markers replace the first viewport with colored code, inline code,
+lists or table rows. Resize to 60×18, then 100×30 during generation. After the
+three-second final pause, verify that the shell screen and prompt return and
+every marker appears once in normal scrollback. Use Ctrl+C during a long fixture
+to check partial-response preservation; `scrollback-interrupt` delivers a last
+chunk under the refresh cadence before its final pause, ready for Ctrl+C.
+`scrollback-failure` delivers that chunk before failing. Both should restore the screen
+before reporting the interruption. With `-vvv`, terminal timings appear after
+restoration; redirected `timings.log` grows during generation. `--delay SECONDS`
+and `--hold SECONDS` adjust the paced fixtures without making provider requests.
 
 ## License
 

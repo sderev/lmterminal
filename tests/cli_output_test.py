@@ -9,7 +9,10 @@ import click
 import pytest
 from click.testing import CliRunner
 from pygments.token import Keyword, Name
+from rich.console import Console
+from rich.markdown import Markdown
 from rich.syntax import PygmentsSyntaxTheme
+from rich.theme import Theme
 
 from lmterminal import cli, cli_output, gpt_integration, storage
 from lmterminal.code_themes import AlabasterStyle, resolve_code_theme
@@ -43,6 +46,7 @@ def _use_terminal(
             _environ=terminal_env,
             color_system=color_system,
             width=80,
+            height=24,
             **kwargs,
         ),
     )
@@ -301,6 +305,81 @@ def test_markdown_interruption_renders_coalesced_partial_text(monkeypatch, inter
     with pytest.raises(expected):
         _execute(prompt=[])
     assert b"FIRST PARTIAL-TAIL" in output.buffer.getvalue()
+    restored = output.buffer.getvalue().split(b"\x1b[?1049l")
+    assert len(restored) == 2
+    assert restored[1].count(b"FIRST PARTIAL-TAIL") == 1
+
+
+@pytest.mark.parametrize("kind", ["fence", "paragraph", "list-table"])
+def test_markdown_tail_is_styled_before_completion_and_final_document_is_printed_once(
+    monkeypatch, kind
+):
+    _prepare_generate_response(monkeypatch)
+    output = _use_terminal(monkeypatch, color_system="truecolor")
+    monkeypatch.setattr(cli_output, "code_block_theme", lambda _: "alabaster")
+    monkeypatch.setattr(cli_output, "inline_code_theme", lambda _: "#325cc0 on #f0f0f0")
+    now = [0.0]
+    monkeypatch.setattr(cli_output, "monotonic", lambda: now[0])
+    if kind == "fence":
+        parts = ["```python\n"] + [f'def item_{n}(): return "TRACE-{n:03d}"\n' for n in range(60)]
+        tail = "```\n\nCOMPLETE\n"
+        palette = "38;2;122;62;157"
+    elif kind == "paragraph":
+        parts = [f"TRACE-{n:03d} **bold** `inline` café 漢字 " for n in range(100)]
+        tail = "END\n\nA [link][late].\n\n[late]: https://example.invalid/\n"
+        palette = "38;2;50;92;192;48;2;240;240;240"
+    else:
+        parts = [f"{n + 1}. TRACE-{n:03d} **bold** `inline`\n" for n in range(30)]
+        parts += ["\n| Item | Value |\n| --- | --- |\n"]
+        parts += [f"| TRACE-{n:03d} | `inline` |\n" for n in range(30, 60)]
+        tail = "| A later wide column | a later wide value |\n"
+        palette = "38;2;50;92;192;48;2;240;240;240"
+
+    def events():
+        yield SimpleNamespace(choices=[])
+        assert output.buffer.getvalue() == b"", "Metadata must not enter the alternate screen"
+        for part in parts:
+            now[0] += 0.1
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=part))])
+        preview = output.buffer.getvalue().decode()
+        assert "TRACE-059" in preview
+        assert palette in preview
+        assert "\x1b[?1049l" not in preview
+        # This chunk is coalesced and must still reach the canonical print.
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=tail))])
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+    )
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    content, _, payload = _execute(prompt=[])
+    text = "".join(parts) + tail
+    assert content == text
+    assert len(payload) == len(parts) + 2
+    rendered = output.buffer.getvalue().decode()
+    assert rendered.count("\x1b[?1049h") == rendered.count("\x1b[?1049l") == 1
+    final = rendered.split("\x1b[?1049l")[1]
+    expected = io.StringIO()
+    console = Console(file=expected, force_terminal=True, color_system="truecolor", width=80)
+    console.push_theme(Theme({"markdown.code": "#325cc0 on #f0f0f0"}))
+    console.print(Markdown(text, code_theme=resolve_code_theme("alabaster")))
+    # Rich assigns a random instance id to OSC-8 links; preserve the URL and styles.
+    import re
+
+    def normalize_links(value):
+        return re.sub(r"id=[^;\x1b]*;", "id=LINK;", value)
+
+    assert normalize_links(final) == normalize_links(expected.getvalue())
+    for index in range(100 if kind == "paragraph" else 60):
+        assert final.count(f"TRACE-{index:03d}") == 1
+
+
+def test_empty_markdown_response_uses_normal_screen_only(monkeypatch):
+    _prepare_generate_response(monkeypatch)
+    output = _use_terminal(monkeypatch)
+    monkeypatch.setattr(gpt_integration, "send_prepared_request", lambda **_: ("", 0, []))
+    assert _execute(prompt=[])[0] == "\n"
+    assert output.buffer.getvalue() == b"\n"
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,7 @@ import click
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
+from rich.segment import Segment, Segments
 from rich.theme import Theme
 
 from . import gpt_integration
@@ -34,6 +35,74 @@ def _status_message(error):
     if isinstance(message, str) and message.strip():
         return message.strip()
     return f"OpenAI request failed (HTTP {error.status_code})."
+
+
+class _MarkdownStream:
+    """Preview styled rows, then preserve one full document on the normal screen."""
+
+    def __init__(self, console, code_theme, diagnostics):
+        self.console = console
+        self.code_theme = code_theme
+        self.diagnostics = diagnostics
+        self.text = ""
+        self.last_refresh = None
+        self.deferred_diagnostics = None
+        self.live = Live(
+            "",
+            console=console,
+            screen=True,
+            auto_refresh=False,
+            redirect_stdout=False,
+            redirect_stderr=False,
+        )
+
+    def __enter__(self):
+        return self
+
+    def write(self, chunk):
+        if not chunk:
+            return
+        first_text = not self.text
+        self.text += chunk
+        if first_text:
+            if self.diagnostics:
+                self.deferred_diagnostics = self.diagnostics.defer_terminal_output()
+                self.deferred_diagnostics.__enter__()
+            self.live.start()
+        if (
+            self.last_refresh is not None
+            and monotonic() - self.last_refresh < _MARKDOWN_REFRESH_INTERVAL
+        ):
+            return
+        if self.diagnostics:
+            self.diagnostics.first("first text submitted to Markdown", level=2)
+        # Layout the complete document before selecting rows: source slicing
+        # would lose fence/inline styles, wrapping and table column context.
+        rows = self.console.render_lines(
+            Markdown(self.text, code_theme=self.code_theme),
+            self.console.options.update(height=None),
+            pad=False,
+        )
+        visible = rows[-max(1, self.console.height - 4) :]
+        self.live.update(
+            Segments([segment for row in visible for segment in [*row, Segment.line()]]),
+            refresh=True,
+        )
+        if self.diagnostics:
+            self.diagnostics.first("first Markdown refresh returned")
+        self.last_refresh = monotonic()
+
+    def __exit__(self, *error):
+        try:
+            # Restore the normal screen before the canonical print or errors.
+            self.live.stop()
+            if self.text:
+                self.console.print(Markdown(self.text, code_theme=self.code_theme))
+            elif error[0] is None:
+                self.console.line()
+        finally:
+            if self.deferred_diagnostics is not None:
+                self.deferred_diagnostics.__exit__(*error)
 
 
 def code_block_theme(config):
@@ -74,11 +143,10 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
 
     import openai
 
-    markdown_stream = ""
-    markdown_pending = False
-    last_markdown_refresh = None
-    live_context = (
-        Live("", console=console, auto_refresh=False) if use_live_markdown else nullcontext()
+    presentation = (
+        _MarkdownStream(console, selected_theme, diagnostics)
+        if use_live_markdown
+        else nullcontext()
     )
     if diagnostics:
         diagnostics.mark(
@@ -86,41 +154,19 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
             level=2,
             detail="mode=Markdown" if use_live_markdown else "mode=plain",
         )
-    with live_context as live:
 
-        def update_markdown_stream(chunk: str) -> None:
-            nonlocal markdown_stream, markdown_pending, last_markdown_refresh
-            if not chunk:
-                return
-            markdown_stream += chunk
-            markdown_pending = True
-            if (
-                last_markdown_refresh is not None
-                and monotonic() - last_markdown_refresh < _MARKDOWN_REFRESH_INTERVAL
-            ):
-                return
+    def emit_text(chunk):
+        if use_live_markdown:
+            presentation.write(chunk)
+        else:
             if diagnostics:
-                diagnostics.first("first text submitted to Markdown", level=2)
-            live.update(
-                Markdown(markdown_stream, code_theme=selected_theme),
-                refresh=True,
-            )
+                diagnostics.first("first text submitted to output", level=2)
+            print(chunk, end="", flush=True)
             if diagnostics:
-                diagnostics.first("first Markdown refresh returned")
-            last_markdown_refresh = monotonic()
-            markdown_pending = False
+                diagnostics.first("first text flushed")
 
-        def emit_text(chunk):
-            if use_live_markdown:
-                update_markdown_stream(chunk)
-            else:
-                if diagnostics:
-                    diagnostics.first("first text submitted to output", level=2)
-                print(chunk, end="", flush=True)
-                if diagnostics:
-                    diagnostics.first("first text flushed")
-
-        try:
+    try:
+        with presentation:
             with openai.OpenAI(api_key=api_key) as client:
                 if diagnostics:
                     diagnostics.mark("client ready", level=2)
@@ -145,38 +191,30 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
                 if diagnostics and has_text:
                     diagnostics.first("first text flushed")
 
-        except openai.RateLimitError as error:
-            raise _CliError(
-                f"{_status_message(error)}\nWait before retrying, or reduce your request rate."
-            ) from error
+    except openai.RateLimitError as error:
+        raise _CliError(
+            f"{_status_message(error)}\nWait before retrying, or reduce your request rate."
+        ) from error
 
-        except openai.AuthenticationError:
-            raise _CliError(
-                "Your OpenAI API key is invalid, expired, or revoked. "
-                f"Check your key and run `{click.style('lmt key edit', fg='blue')}` to replace it."
-            ) from None
+    except openai.AuthenticationError:
+        raise _CliError(
+            "Your OpenAI API key is invalid, expired, or revoked. "
+            f"Check your key and run `{click.style('lmt key edit', fg='blue')}` to replace it."
+        ) from None
 
-        except openai.APIConnectionError as error:
-            raise _CliError(
-                "Could not connect to OpenAI. Check your connection and retry."
-            ) from error
+    except openai.APIConnectionError as error:
+        raise _CliError("Could not connect to OpenAI. Check your connection and retry.") from error
 
-        except openai.APIStatusError as error:
-            raise _CliError(_status_message(error)) from error
+    except openai.APIStatusError as error:
+        raise _CliError(_status_message(error)) from error
 
-        except BrokenPipeError:
-            # Click owns quiet EPIPE handling, including interpreter-shutdown flushing.
-            raise
+    except BrokenPipeError:
+        # Click owns quiet EPIPE handling, including interpreter-shutdown flushing.
+        raise
 
-        # Preserve the CLI's error-to-exit contract for unexpected failures.
-        except Exception as error:
-            raise _CliError(str(error)) from error
-
-        finally:
-            # Live refreshes on exit, including errors and Ctrl+C. Give it any
-            # text coalesced since the last refresh before that final render.
-            if use_live_markdown and markdown_pending:
-                live.update(Markdown(markdown_stream, code_theme=selected_theme))
+    # Preserve the CLI's error-to-exit contract for unexpected failures.
+    except Exception as error:
+        raise _CliError(str(error)) from error
 
     if diagnostics:
         diagnostics.output_complete()

@@ -3,6 +3,7 @@ import sys
 from contextlib import nullcontext
 from types import SimpleNamespace
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -179,3 +180,60 @@ def test_nonstream_timings_report_output_after_response(monkeypatch, tmp_path, t
         assert "request_ttft_s=unavailable first_output_s=unavailable" in result.stderr
         assert "first text received" not in result.stderr
         assert "first text flushed" not in result.stderr
+
+
+@pytest.mark.parametrize("terminal_stderr", [False, True])
+@pytest.mark.parametrize("failure", [False, True])
+def test_markdown_preserves_terminal_diagnostics_after_restoration_and_redirected_immediacy(
+    monkeypatch, terminal_stderr, failure
+):
+    from cli_output_test import _execute, _prepare_generate_response, _use_terminal
+
+    _prepare_generate_response(monkeypatch)
+    output = _use_terminal(monkeypatch)
+    now = [0.0]
+    monkeypatch.setattr(cli_output, "monotonic", lambda: 0.0)
+
+    class DiagnosticOutput(io.StringIO):
+        def isatty(self):
+            return terminal_stderr
+
+        def write(self, text):
+            if "first Markdown refresh returned" in text and terminal_stderr or "Error:" in text:
+                final = output.buffer.getvalue().split(b"\x1b[?1049l")
+                assert len(final) == 2, "Restore the screen before terminal diagnostics/errors"
+                assert b"FIRST COALESCED-TAIL" in final[1]
+            return super().write(text)
+
+    stderr = DiagnosticOutput()
+    monkeypatch.setattr(sys, "stderr", stderr)
+    diagnostics = RequestDiagnostics(3, clock=lambda: now[0])
+
+    def events():
+        now[0] = 1.0
+        yield chunk("FIRST ")
+        assert ("first Markdown refresh returned" in stderr.getvalue()) != terminal_stderr
+        assert diagnostics.times["first Markdown refresh returned"] == 1.0
+        now[0] = 2.0
+        yield chunk("COALESCED-TAIL")
+        if failure:
+            raise RuntimeError("Synthetic failure")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
+    )
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    if failure:
+        with pytest.raises(click.ClickException, match="Synthetic failure") as error:
+            _execute(prompt=[], diagnostics=diagnostics)
+        assert "Synthetic failure" not in stderr.getvalue()
+        error.value.show()
+    else:
+        _execute(prompt=[], diagnostics=diagnostics)
+    trace = stderr.getvalue()
+    assert trace.count("[lmt +1.000s] first Markdown refresh returned") == 1
+    assert ("output complete" in trace) != failure
+    assert ("Synthetic failure" in trace) == failure
+    if failure:
+        assert trace.index("first Markdown refresh returned") < trace.index("Error:")
+    assert diagnostics.stderr is stderr
