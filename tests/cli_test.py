@@ -602,18 +602,6 @@ def test_option_duplicates_and_conflicts(values):
         cli.parse_request_options(None, None, values)
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize("model", list(cli.get_valid_models()), ids=str)
-def test_live_call(model, request):
-    if not request.config.getoption("--run-live"):
-        pytest.skip("Skipping live call test. Use --run-live to enable.")
-    runner = CliRunner()
-    result = runner.invoke(cli.lmt, ["--model", model, "Ping"])
-
-    if result.exit_code != 0:
-        pytest.fail(result.output)
-
-
 def test_conditional_temperature_help():
     result = CliRunner().invoke(cli.lmt, ["prompt", "--help"])
     assert result.exit_code == 0

@@ -453,7 +453,9 @@ isolated cache and also forbid credential access. Both vocabularies have fixed
 token-count oracles; every registered Chat Completions model and alias has an independent resolver
 expectation. CI provisions the assets for each Python version and fails if they
 are absent or invalid. Local runs without `LMT_TEST_TIKTOKEN_CACHE` skip the
-vocabulary checks. Live API tests remain opt-in with `--run-live`.
+vocabulary checks. Live API testing requires both `--run-live` and
+`--live-model MODEL` for one selected model; ordinary tests keep their offline
+guards. See [developer checks](.ci/README.md) for commands and distribution checks.
 
 For an offline CLI walkthrough, `tests/manual_cli.py` supplies a fake client,
 a temporary HOME, `translate` and `sparse` templates, and Alabaster colors. Its

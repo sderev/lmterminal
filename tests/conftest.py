@@ -2,7 +2,6 @@ import hashlib
 import os
 import shutil
 import socket
-import sys
 import tempfile
 from pathlib import Path
 
@@ -11,31 +10,38 @@ import tiktoken.load
 import tiktoken.registry
 from click.testing import CliRunner
 
-# Guard imports as well as test execution; never consult personal HOME/config.
-# Explicit live runs retain the historical opt-in, separate from offline gate.
-if "--run-live" not in sys.argv:
-    _home = tempfile.TemporaryDirectory(prefix="lmt-tests-home-")
-    os.environ["HOME"] = _home.name
-    os.environ["XDG_CONFIG_HOME"] = _home.name + "/config"
-    os.environ["TIKTOKEN_CACHE_DIR"] = _home.name + "/tokenizer"
-    for _key in list(os.environ):
-        if any(part in _key for part in ("API_KEY", "TOKEN", "OPENAI", "AZURE")) and _key not in {
-            "LMT_TEST_TIKTOKEN_CACHE",
-            "TIKTOKEN_CACHE_DIR",
-        }:
-            os.environ.pop(_key)
+# Guard imports as well as ordinary tests, even when a live case is selected.
+_home_variables = {name: os.environ.get(name) for name in ("HOME", "XDG_CONFIG_HOME")}
+_private_environment = {
+    name: value
+    for name, value in os.environ.items()
+    if any(part in name for part in ("API_KEY", "TOKEN", "OPENAI", "AZURE"))
+    and name not in {"LMT_TEST_TIKTOKEN_CACHE", "TIKTOKEN_CACHE_DIR"}
+}
+_home = tempfile.TemporaryDirectory(prefix="lmt-tests-home-")
+os.environ["HOME"] = _home.name
+os.environ["XDG_CONFIG_HOME"] = _home.name + "/config"
+os.environ["TIKTOKEN_CACHE_DIR"] = _home.name + "/tokenizer"
+for _key in _private_environment:
+    os.environ.pop(_key)
 
-    def _forbidden(*args, **kwargs):
-        raise AssertionError("Offline tests must not construct provider clients or access networks")
 
-    socket.socket.connect = _forbidden
-    socket.create_connection = _forbidden
-    import openai
+def _forbidden(*args, **kwargs):
+    raise AssertionError("Offline tests must not construct provider clients or access networks")
 
-    openai.OpenAI = _forbidden
-    tiktoken.load.read_file = _forbidden
+
+_socket_connect = socket.socket.connect
+_create_connection = socket.create_connection
+socket.socket.connect = _forbidden
+socket.create_connection = _forbidden
+import openai
+
+_provider_client = openai.OpenAI
+openai.OpenAI = _forbidden
+tiktoken.load.read_file = _forbidden
 
 from lmterminal import cli, cli_output
+from lmterminal.model_registry import resolve_model_name
 
 
 def pytest_addoption(parser):
@@ -43,8 +49,48 @@ def pytest_addoption(parser):
         "--run-live",
         action="store_true",
         default=False,
-        help="Run tests that hit the real API endpoint",
+        help="Opt in to one paid provider test; also requires --live-model MODEL",
     )
+    parser.addoption(
+        "--live-model",
+        metavar="MODEL",
+        help="Registered model or alias for the single paid live test; no default; requires --run-live",
+    )
+
+
+def pytest_configure(config):
+    enabled = config.getoption("--run-live")
+    selected = config.getoption("--live-model")
+    if enabled != (selected is not None):
+        raise pytest.UsageError("Paid live tests require both --run-live and --live-model MODEL")
+    if selected is not None and resolve_model_name(selected) is None:
+        raise pytest.UsageError(
+            f"Unknown --live-model {selected!r}; choose a registered model or alias from `lmt models` "
+            "(offline catalog; account access is not checked)"
+        )
+
+
+@pytest.fixture
+def live_model(request, monkeypatch):
+    selected = request.config.getoption("--live-model")
+    if not request.config.getoption("--run-live") or selected is None:
+        pytest.skip("Paid live test requires --run-live and --live-model MODEL")
+    # A marker or a request for this fixture cannot grant another test live access.
+    if (
+        request.node.path != Path(__file__).with_name("live_test.py")
+        or request.node.name != "test_live_call"
+    ):
+        raise pytest.UsageError("Only tests/live_test.py::test_live_call may use live access")
+    with monkeypatch.context() as live:
+        for name, value in (_home_variables | _private_environment).items():
+            if value is None:
+                live.delenv(name, raising=False)
+            else:
+                live.setenv(name, value)
+        live.setattr(socket.socket, "connect", _socket_connect)
+        live.setattr(socket, "create_connection", _create_connection)
+        live.setattr(openai, "OpenAI", _provider_client)
+        yield resolve_model_name(selected)
 
 
 @pytest.fixture
