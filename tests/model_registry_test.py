@@ -113,7 +113,7 @@ def test_models_list_needs_no_request_or_key(monkeypatch):
         pytest.fail("Model listing must stay offline")
 
     monkeypatch.setattr(cli_output, "read_api_key", forbidden)
-    monkeypatch.setattr(cli_output.openai, "OpenAI", forbidden)
+    monkeypatch.setattr("openai.OpenAI", forbidden)
     monkeypatch.setattr(estimation.tiktoken, "encoding_name_for_model", forbidden)
     monkeypatch.setattr(estimation.tiktoken, "get_encoding", forbidden)
     assert model_registry.resolve_model_name("sol") == "gpt-6.1-sol"

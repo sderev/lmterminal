@@ -42,7 +42,7 @@ def test_verbose_cli_is_metadata_only_and_preserves_stdout(monkeypatch, tmp_path
         )
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     args = ["--template", "synthetic", "-o", "metadata.secret=private-option"]
     if verbosity:
         args.append("-" + "v" * verbosity)
@@ -125,7 +125,7 @@ def test_stream_timings_distinguish_empty_events_text_and_output(monkeypatch, ma
         return events()
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     result = _execute(prompt=[], raw=not markdown, diagnostics=diagnostics)
 
     assert result[0] == first_text + " world\n"
@@ -164,7 +164,7 @@ def test_nonstream_timings_report_output_after_response(monkeypatch, tmp_path, t
         )
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     result = CliRunner().invoke(cli.lmt, ["--verbose", "-vv", "--no-stream"], input="hi")
     assert result.exit_code == 0, result.output
     assert result.stdout == ("hello\n" if text else "\n")

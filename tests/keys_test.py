@@ -6,7 +6,7 @@ import stat
 import pytest
 from click.testing import CliRunner
 
-from lmterminal import cli, cli_output, storage
+from lmterminal import cli, storage
 from lmterminal.storage import StorageError
 
 
@@ -18,7 +18,7 @@ def isolated_home(monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
         pytest.fail("Key tests must not contact a provider")
 
-    monkeypatch.setattr(cli_output.openai, "OpenAI", forbidden)
+    monkeypatch.setattr("openai.OpenAI", forbidden)
     monkeypatch.setattr(socket.socket, "connect", forbidden)
 
 

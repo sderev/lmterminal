@@ -4,7 +4,6 @@ import sys
 from contextlib import nullcontext
 
 import click
-import openai
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -55,6 +54,8 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
         raise click.ClickException(str(error)) from error
     if not api_key:
         raise click.ClickException("You need to set your OpenAI API key. Run `lmt key set`.")
+
+    import openai
 
     markdown_stream = ""
     live_context = (

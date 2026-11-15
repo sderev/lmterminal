@@ -68,7 +68,7 @@ def _execute(*, prompt, **kwargs):
 
 
 def _prepare_generate_response(monkeypatch):
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(object()))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(object()))
     monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     monkeypatch.setattr(cli_output, "code_block_theme", lambda _config: "monokai")
     monkeypatch.setattr(cli_output, "inline_code_theme", lambda _config: "blue on black")
@@ -157,7 +157,7 @@ def test_token_estimate_skips_response_theme_validation(monkeypatch):
 
 def test_generate_response_handles_rate_limit_error(monkeypatch):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(cli_output.openai, "RateLimitError", DummyRateLimitError)
+    monkeypatch.setattr("openai.RateLimitError", DummyRateLimitError)
 
     called = {"value": False}
 
@@ -178,7 +178,7 @@ def test_generate_response_handles_rate_limit_error(monkeypatch):
 
 def test_generate_response_handles_authentication_error(monkeypatch):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(cli_output.openai, "AuthenticationError", DummyAuthenticationError)
+    monkeypatch.setattr("openai.AuthenticationError", DummyAuthenticationError)
 
     called = {"value": False}
 
@@ -199,7 +199,7 @@ def test_generate_response_handles_authentication_error(monkeypatch):
 
 def test_generate_response_handles_api_connection_error(monkeypatch, capsys):
     _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr(cli_output.openai, "APIConnectionError", DummyAPIConnectionError)
+    monkeypatch.setattr("openai.APIConnectionError", DummyAPIConnectionError)
 
     def fake_chatgpt_request(**_kwargs):
         raise DummyAPIConnectionError("network down")
@@ -252,7 +252,7 @@ def test_generate_response_stream_is_visible_before_completion(
         return gated_chunks()
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
 
     content, response_time, response = _execute(
         prompt=[{"role": "user", "content": "hello"}],
@@ -283,7 +283,7 @@ def test_generate_response_non_stream_preserves_plain_text_and_response(monkeypa
         return response
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
 
     content, response_time, response_payload = _execute(
         prompt=[{"role": "user", "content": "hello"}], raw=False, stream=False

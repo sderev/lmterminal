@@ -56,7 +56,7 @@ def no_provider_or_download(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(tmp_path / "empty-cache"))
     monkeypatch.setattr(cli_output, "read_api_key", forbidden)
-    monkeypatch.setattr(cli_output.openai, "OpenAI", forbidden)
+    monkeypatch.setattr("openai.OpenAI", forbidden)
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(tiktoken.load, "read_file", forbidden)
     monkeypatch.setattr(tiktoken.registry, "ENCODINGS", {})

@@ -302,7 +302,7 @@ def test_estimate_and_transport_receive_same_prepared_values(
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     result = runner.invoke(cli.lmt, args + ["--no-stream"], input="stdin text")
     assert result.exit_code == 0, result.output
     prepared = requests[0]

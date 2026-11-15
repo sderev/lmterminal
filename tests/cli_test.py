@@ -234,7 +234,7 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
 
     result = CliRunner().invoke(
         cli.lmt, args, input="piped input\n", env={"TERM": "xterm", "FORCE_COLOR": "1"}
@@ -278,7 +278,7 @@ def test_prompt_request_controls(monkeypatch, tmp_path, command, no_stream, mode
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     args = command + [
         "-m",
         model,
@@ -340,7 +340,7 @@ def test_redirected_response_preserves_text_and_final_lf(
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     path = tmp_path / "response.txt"
     with path.open("w", encoding="UTF-8") as output:
@@ -361,7 +361,7 @@ def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, ca
     client = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
     )
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     path = tmp_path / "response.txt"
     with path.open("w", encoding="UTF-8") as output:
@@ -481,7 +481,7 @@ def test_cli_model_precedence_preserves_defaults_provenance(
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hello"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     result = CliRunner().invoke(
         cli.lmt,
         ["--template", "fixture", "--no-stream", *args],
@@ -643,7 +643,7 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))])
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: nullcontext(client))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
     monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
     cli_result = CliRunner().invoke(
         cli.lmt,
@@ -731,7 +731,7 @@ def test_cli_closes_its_client_after_success_or_stream_failure(monkeypatch, fail
         def __exit__(self, *args):
             closed.append(True)
 
-    monkeypatch.setattr(cli_output.openai, "OpenAI", lambda **_: Client())
+    monkeypatch.setattr("openai.OpenAI", lambda **_: Client())
     result = CliRunner().invoke(cli.lmt, ["--raw", "Task"], input="")
     assert result.exit_code == (1 if fails else 0)
     assert result.stdout == ("part" if fails else "part\n")
