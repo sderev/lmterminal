@@ -68,3 +68,5 @@ entry_title_template = "{{ version }} - {{ date.strftime('%Y-%m-%d') }}"
 [tool.uv.build-backend]
 module-root = ""
 module-name = "lmterminal"
+# Exclude package-local environments, editor settings and caches at any depth.
+source-exclude = ["/lmterminal/**/.*", "/lmterminal/**/.*/**"]
