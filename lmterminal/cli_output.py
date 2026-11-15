@@ -1,6 +1,7 @@
 """CLI presentation and execution policy; not a library generation API."""
 
 import sys
+from collections.abc import Mapping
 from contextlib import nullcontext
 from time import monotonic
 
@@ -15,10 +16,24 @@ from .code_themes import resolve_code_theme
 from .estimation import estimate_request
 from .storage import StorageError, load_config, read_api_key
 
-BLUE = "\x1b[34m"
-RED = "\x1b[91m"
-RESET = "\x1b[0m"
 _MARKDOWN_REFRESH_INTERVAL = 1 / 20
+
+
+class _CliError(click.ClickException):
+    def show(self, file=None):
+        click.echo(
+            f"{click.style('Error:', fg='red')} {self.format_message()}",
+            file=file,
+            err=True,
+        )
+
+
+def _status_message(error):
+    body = error.body
+    message = body.get("message") if isinstance(body, Mapping) else None
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+    return f"OpenAI request failed (HTTP {error.status_code})."
 
 
 def code_block_theme(config):
@@ -131,24 +146,31 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
                     diagnostics.first("first text flushed")
 
         except openai.RateLimitError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            handle_rate_limit_error()
-            sys.exit(1)
+            raise _CliError(
+                f"{_status_message(error)}\nWait before retrying, or reduce your request rate."
+            ) from error
 
         except openai.AuthenticationError:
-            handle_authentication_error()
-            sys.stderr.write("\nYou can set your API key by running: ")
-            sys.stderr.write(f"{BLUE}lmt key set{RESET}\n")
-            sys.exit(1)
+            raise _CliError(
+                "Your OpenAI API key is invalid, expired, or revoked. "
+                f"Check your key and run `{click.style('lmt key edit', fg='blue')}` to replace it."
+            ) from None
 
         except openai.APIConnectionError as error:
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+            raise _CliError(
+                "Could not connect to OpenAI. Check your connection and retry."
+            ) from error
+
+        except openai.APIStatusError as error:
+            raise _CliError(_status_message(error)) from error
+
+        except BrokenPipeError:
+            # Click owns quiet EPIPE handling, including interpreter-shutdown flushing.
+            raise
 
         # Preserve the CLI's error-to-exit contract for unexpected failures.
-        except Exception as error:  # noqa: BLE001
-            click.echo(f"{RED}Error:{RESET} {error}", err=True)
-            sys.exit(1)
+        except Exception as error:
+            raise _CliError(str(error)) from error
 
         finally:
             # Live refreshes on exit, including errors and Ctrl+C. Give it any
@@ -225,59 +247,3 @@ def display_tokens_count_and_cost(request):
     click.echo("Cache reads and writes are excluded; actual input charges may be lower or higher.")
     click.echo("Excludes output/reasoning, tool fees and service-tier adjustments; not a bill.")
     return 1 if estimate.message_tokens is None else 0
-
-
-def handle_rate_limit_error():
-    """
-    Provides guidance on how to handle a rate limit error.
-    """
-    sys.stderr.write("\n")
-    sys.stderr.write(
-        BLUE
-        + "You might not have set a usage rate limit in your OpenAI account settings. "
-        + RESET
-        + "\n"
-    )
-    sys.stderr.write(
-        "If that's the case, you can set it"
-        " here:\nhttps://platform.openai.com/account/billing/limits" + "\n"
-    )
-
-    sys.stderr.write("\n")
-    sys.stderr.write(
-        BLUE + "If you have set a usage rate limit, please try the following steps:" + RESET + "\n"
-    )
-    sys.stderr.write("- Wait a few seconds before trying again.\n")
-    sys.stderr.write("\n")
-    sys.stderr.write(
-        "- Reduce your request rate or batch tokens. You can read the"
-        " OpenAI rate limits"
-        " here:\nhttps://platform.openai.com/account/rate-limits" + "\n"
-    )
-    sys.stderr.write("\n")
-    sys.stderr.write(
-        "- If you are using the free plan, you can upgrade to the paid"
-        " plan"
-        " here:\nhttps://platform.openai.com/account/billing/overview" + "\n"
-    )
-    sys.stderr.write("\n")
-    sys.stderr.write(
-        "- If you are using the paid plan, you can increase your usage"
-        " rate limit"
-        " here:\nhttps://platform.openai.com/account/billing/limits" + "\n"
-    )
-
-
-def handle_authentication_error():
-    """
-    Provides guidance on how to handle an authentication error.
-    """
-    sys.stderr.write(
-        f"{RED}Error:{RESET} Your API key or token is invalid, expired, or"
-        " revoked. Check your API key or token and make sure it is correct"
-        " and active.\n"
-    )
-    sys.stderr.write(
-        "\nYou may need to generate a new API key from your account"
-        " dashboard: https://platform.openai.com/account/api-keys\n"
-    )

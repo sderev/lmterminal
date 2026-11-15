@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.syntax import Syntax
 
 from .cli_output import (
+    _CliError,
     code_block_theme,
     display_debug_information,
     display_tokens_count_and_cost,
@@ -547,11 +548,10 @@ def edit(template):
             )
 
     else:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo("Template ", nl=False)
-        click.secho(template, fg="red", nl=False)
-        click.echo(" does not exist.")
-        click.echo(f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to create it.")
+        raise _CliError(
+            f"Template `{click.style(template, fg='red')}` does not exist. "
+            f"Use `{click.style(f'lmt templates add {template}', fg='blue')}` to create it."
+        )
 
 
 @templates.command("add")
@@ -599,10 +599,7 @@ def delete_template(template):
             f" '{click.style(template, fg='blue')}' deleted."
         )
     else:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo("The template '", nl=False)
-        click.secho(template, fg="red", nl=False)
-        click.echo("' does not exist.")
+        raise _CliError(f"Template `{click.style(template, fg='red')}` does not exist.")
 
 
 @templates.command("rename")
@@ -627,8 +624,7 @@ def rename_template(template):
             f" '{click.style(new_template_name, fg='green')}'."
         )
     else:
-        click.secho("Error: ", fg="red", nl=False)
-        click.echo(f"The template '{template}' does not exist.")
+        raise _CliError(f"Template `{click.style(template, fg='red')}` does not exist.")
 
 
 @lmt.group()
@@ -665,10 +661,10 @@ def _manage_key(*, edit):
     try:
         existing = read_api_key(path)
         if existing and not edit:
-            click.secho("Error: ", fg="red", nl=False)
-            click.echo("API key already exists.")
-            click.echo(f"Use `{click.style('lmt key edit', fg='blue')}` to edit it.")
-            return
+            raise _CliError(
+                "API key already exists. "
+                f"Use `{click.style('lmt key edit', fg='blue')}` to edit it."
+            )
         if not existing and edit:
             click.secho("Error: ", fg="red", nl=False)
             click.echo("API key does not exist.")

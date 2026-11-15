@@ -169,6 +169,15 @@ trimming whitespace or changing existing trailing newlines.
 Content-free tool-call responses print an empty line; library callers retain the
 raw response payload.
 
+Request failures and failed management commands print errors on stderr and exit
+nonzero. Missing templates in `edit`, `delete`, or `rename`, and `key set` when a
+key already exists, exit with status 1. Redirected errors are plain text; terminal
+errors retain color. Provider status errors show the provider's message when
+available, otherwise an HTTP-status summary. Authentication errors use fixed
+guidance; run `lmt key edit` to replace a stored key. Failed streams preserve text
+already received without adding a final newline. A closed output pipe exits
+quietly with status 1.
+
 In Vim, filter selected lines with `:'<,'>!lmt "Rewrite this paragraph"`.
 
 ## Diagnosing response delays
@@ -469,13 +478,16 @@ uv run python tests/manual_cli.py --fixture partial-failure --raw 'Hello' > part
 uv run python tests/manual_cli.py --fixture markdown 'Hello'
 uv run python tests/manual_cli.py templates view sparse
 uv run python tests/manual_cli.py --fixture missing-key --raw 'Hello'
+uv run python tests/manual_cli.py --fixture auth 'Hello' 2> auth-error.txt
 ```
 
 Expect content, `___`, then template/task instructions in the first command;
 `Hello` plus a final LF in `response.txt` and no-stream output; nonzero exit with
 exactly `partial` (no LF) in `partial.txt` on failure; colored fenced and inline
 code in an interactive terminal; only the two stored fields for `sparse`; and a
-stderr-only missing-key error. These commands never call a provider. The automated
+stderr-only missing-key error; and status 1 with plain key-edit guidance only in
+`auth-error.txt`. Run the auth fixture without redirection to check terminal error
+colors. These commands never call a provider. The automated
 counterparts live in `templates_test.py`, `cli_test.py`, `cli_output_test.py`,
 `template_view_test.py` and `keys_test.py`; visual inspection remains a manual step.
 

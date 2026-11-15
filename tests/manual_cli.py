@@ -15,7 +15,9 @@ from types import SimpleNamespace
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--fixture", choices=("echo", "markdown", "partial-failure", "missing-key"), default="echo"
+        "--fixture",
+        choices=("echo", "markdown", "partial-failure", "missing-key", "auth", "pipe"),
+        default="echo",
     )
     parser.add_argument("--saved-model", help="Save a model preference in the temporary config.")
     options, arguments = parser.parse_known_args()
@@ -53,11 +55,27 @@ def main():
             (directory / "keys.json").chmod(0o600)
 
         def create(**kwargs):
+            if options.fixture == "auth":
+                import httpx
+
+                raise openai.AuthenticationError(
+                    "PRIVATE",
+                    response=httpx.Response(
+                        401, request=httpx.Request("POST", "https://example.invalid")
+                    ),
+                    body={"message": "Invalid PRIVATE key"},
+                )
             text = kwargs["messages"][-1]["content"]
             if options.fixture == "markdown":
                 text = 'Inline `fib`.\n\n```python\ndef fib():\n    return "hello"\n```\n'
 
             def events():
+                if options.fixture == "pipe":
+                    for _ in range(100000):
+                        yield SimpleNamespace(
+                            choices=[SimpleNamespace(delta=SimpleNamespace(content="x" * 16))]
+                        )
+                    return
                 if options.fixture == "partial-failure":
                     yield SimpleNamespace(
                         choices=[SimpleNamespace(delta=SimpleNamespace(content="partial"))]

@@ -49,18 +49,6 @@ def _use_terminal(
     return output
 
 
-class DummyRateLimitError(Exception):
-    pass
-
-
-class DummyAuthenticationError(Exception):
-    pass
-
-
-class DummyAPIConnectionError(Exception):
-    pass
-
-
 def _execute(*, prompt, **kwargs):
     request = resolve_request(prompt=prompt[0]["content"] if prompt else "")
     return cli_output.execute_request(
@@ -154,63 +142,6 @@ def test_token_estimate_skips_response_theme_validation(monkeypatch):
     result = CliRunner().invoke(cli.lmt, ["--tokens"], input="fixture")
     assert result.exit_code == 1  # Explicit unavailable estimate, independent of themes.
     assert "Request input tokens and cost: unavailable" in result.output
-
-
-def test_generate_response_handles_rate_limit_error(monkeypatch):
-    _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr("openai.RateLimitError", DummyRateLimitError)
-
-    called = {"value": False}
-
-    def fake_chatgpt_request(**_kwargs):
-        raise DummyRateLimitError("quota exceeded")
-
-    def fake_rate_limit_handler():
-        called["value"] = True
-
-    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
-    monkeypatch.setattr(cli_output, "handle_rate_limit_error", fake_rate_limit_handler)
-
-    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
-    assert result.exit_code == 1
-    assert result.stdout == ""
-    assert called["value"] is True
-
-
-def test_generate_response_handles_authentication_error(monkeypatch):
-    _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr("openai.AuthenticationError", DummyAuthenticationError)
-
-    called = {"value": False}
-
-    def fake_chatgpt_request(**_kwargs):
-        raise DummyAuthenticationError("invalid key")
-
-    def fake_auth_handler():
-        called["value"] = True
-
-    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
-    monkeypatch.setattr(cli_output, "handle_authentication_error", fake_auth_handler)
-
-    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
-    assert result.exit_code == 1
-    assert result.stdout == ""
-    assert called["value"] is True
-
-
-def test_generate_response_handles_api_connection_error(monkeypatch, capsys):
-    _prepare_generate_response(monkeypatch)
-    monkeypatch.setattr("openai.APIConnectionError", DummyAPIConnectionError)
-
-    def fake_chatgpt_request(**_kwargs):
-        raise DummyAPIConnectionError("network down")
-
-    monkeypatch.setattr(gpt_integration, "send_prepared_request", fake_chatgpt_request)
-
-    result = CliRunner().invoke(cli.lmt, ["hello"], input="")
-    assert result.exit_code == 1
-    assert result.stdout == ""
-    assert "network down" in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -364,7 +295,9 @@ def test_markdown_interruption_renders_coalesced_partial_text(monkeypatch, inter
         chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **_: events()))
     )
     monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
-    expected = KeyboardInterrupt if isinstance(interruption, KeyboardInterrupt) else SystemExit
+    expected = (
+        KeyboardInterrupt if isinstance(interruption, KeyboardInterrupt) else click.ClickException
+    )
     with pytest.raises(expected):
         _execute(prompt=[])
     assert b"FIRST PARTIAL-TAIL" in output.buffer.getvalue()

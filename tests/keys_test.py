@@ -179,8 +179,9 @@ def test_key_commands_keep_hidden_input_and_unchanged_key_behavior(key_path):
     path.chmod(0o666)
 
     result = runner.invoke(cli.lmt, ["key", "set"])
-    assert result.exit_code == 0, result.output
-    assert "API key already exists." in result.output
+    assert result.exit_code == 1, result.output
+    assert result.stdout == ""
+    assert "API key already exists." in result.stderr
     result = runner.invoke(cli.lmt, ["key", "edit"], input="dummy-first\n")
     assert result.exit_code == 0, result.output
     assert "No changes were made." in result.output

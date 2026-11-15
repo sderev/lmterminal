@@ -367,7 +367,7 @@ def test_redirected_failed_stream_keeps_partial_output(monkeypatch, tmp_path, ca
     with path.open("w", encoding="UTF-8") as output:
         monkeypatch.setattr(sys, "stdout", output)
         with pytest.raises(SystemExit) as error:
-            cli.lmt.main(["fixture"], standalone_mode=False)
+            cli.lmt.main(["fixture"])
         assert error.value.code == 1
         assert path.read_bytes() == b"partial"
     assert "fixture stream failure" in capsys.readouterr().err
@@ -621,7 +621,7 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
     error = openai.BadRequestError(
         "sampling rejected",
         response=httpx.Response(400, request=httpx.Request("POST", "https://example.invalid")),
-        body={"error": {"message": "sampling rejected"}},
+        body={"message": "sampling rejected"},
     )
 
     def create(**kwargs):
