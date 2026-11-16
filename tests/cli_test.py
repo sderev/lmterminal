@@ -54,7 +54,7 @@ def test_resource_paths_do_not_read_or_create(
             cli,
             ("load_config", "load_template", "list_templates", "read_api_key", "execute_request"),
         ),
-        (cli_output, ("load_config", "read_api_key")),
+        (cli_output, ("read_api_key",)),
         (cli.click, ("edit",)),
     ]:
         for name in names:
@@ -152,6 +152,39 @@ def test_empty_prompt_fails_before_credentials_or_execution(
     assert (
         "Prompt is empty. Supply prompt text, --text, stdin, or a template task." in result.stderr
     )
+
+
+@pytest.mark.parametrize(
+    "source,args,model",
+    [
+        (b'{"default_model": "sol", "PRIVATE":', [], DEFAULT_MODEL),
+        (b'["PRIVATE"]', ["-m", "4o"], "gpt-4o"),
+        (b"\xffPRIVATE", ["--raw"], DEFAULT_MODEL),
+    ],
+)
+def test_invalid_config_warns_once_and_uses_defaults(monkeypatch, tmp_path, source, args, model):
+    directory = tmp_path / ".config" / "lmt"
+    directory.mkdir(parents=True)
+    config_path = directory / "config.json"
+    config_path.write_bytes(source)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _path: "test-key")
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Hello"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    result = CliRunner().invoke(cli.lmt, ["--no-stream", *args, "Hello"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "Hello\n"
+    assert result.stderr.count("Warning:") == 1
+    assert "Using defaults. Run `lmt config path` to locate it." in result.stderr
+    assert "PRIVATE" not in result.stderr
+    assert calls[0]["model"] == model
+    assert config_path.read_bytes() == source
 
 
 def test_prompt_help_explains_reasoning_default_and_debug_disclosure():

@@ -417,6 +417,7 @@ now require an explicit directory. Storage helpers in `lmterminal.storage` take
 explicit paths (`load_config`, `read_api_key`, `write_key`) and raise
 `StorageError` or filesystem errors without printing. No compatibility wrappers
 or automatic personal configuration are provided to library callers.
+`load_config` raises `StorageError` for malformed UTF-8/JSON or a non-object root.
 
 ## Library input estimates
 
@@ -451,9 +452,11 @@ Model selection is CLI `--model` > selected template's non-null `model` > saved
 `default_model` > package default. Registered model names and aliases work here;
 run `lmt models` to list them. Missing or null `default_model` leaves the package
 fallback unchanged. An invalid selected value fails locally before reading stdin
-or credentials; a higher-priority model overrides it. Malformed, unreadable, or
-non-object configuration is treated as empty configuration. These preferences
-apply to the CLI; library callers supply model choices explicitly.
+or credentials; a higher-priority model overrides it. Malformed UTF-8/JSON or
+non-object configuration produces a stderr warning and uses defaults; run
+`lmt config path` to locate the file and correct it. Missing or unreadable files
+use defaults silently. These preferences apply to the CLI; library callers supply
+model choices explicitly.
 
 `code_block_theme` accepts the bundled `alabaster` palette or an installed Pygments
 style. Alabaster code blocks use a `#f0f0f0` background for contrast with Alabaster
@@ -501,6 +504,7 @@ uv run python tests/manual_cli.py --fixture markdown 'Hello'
 uv run python tests/manual_cli.py templates view sparse
 uv run python tests/manual_cli.py --fixture missing-key --raw 'Hello'
 uv run python tests/manual_cli.py --forbid-credentials < /dev/null
+uv run python tests/manual_cli.py --config-fixture malformed --raw 'Hello'
 uv run python tests/manual_cli.py --fixture auth 'Hello' 2> auth-error.txt
 uv run python tests/manual_cli.py --fixture long-code 'Hello'
 uv run python tests/manual_cli.py --fixture long-paragraph 'Hello'
@@ -519,6 +523,9 @@ stderr-only missing-key error; and status 1 with plain key-edit guidance only in
 colors. These commands never call a provider. The automated
 counterparts live in `templates_test.py`, `cli_test.py`, `cli_output_test.py`,
 `template_view_test.py` and `keys_test.py`; visual inspection remains a manual step.
+
+The empty-input walkthrough exits 2 before credentials are read. The malformed-config
+walkthrough warns once on stderr, prints `Hello`, and verifies the config bytes stay intact.
 
 Run the long fixtures in an 80×24 terminal. Before they finish, check that later
 `TRACE-...` markers replace the first viewport with colored code, inline code,

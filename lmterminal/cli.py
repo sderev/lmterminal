@@ -55,8 +55,18 @@ def _key_path(ctx=None):
     return _config_directory(ctx) / "keys.json"
 
 
-def _saved_default_model(config_path):
-    value = load_config(config_path).get("default_model")
+def _load_config():
+    try:
+        return load_config(_config_path())
+    except StorageError as error:
+        click.echo(
+            f"Warning: {error} Using defaults. Run `lmt config path` to locate it.", err=True
+        )
+        return {}
+
+
+def _saved_default_model(config):
+    value = config.get("default_model")
     if value is None:
         return UNSET
     canonical = resolve_model_name(value) if isinstance(value, str) else None
@@ -384,8 +394,9 @@ def prompt(
         if template is not None and settings["system"] is not UNSET:
             resolve_request(template=template, **settings)
         stored = load_template(template, _template_directory()) if template is not None else None
+        config = _load_config()
         if settings["model"] is UNSET and (stored is None or stored.model is None):
-            settings["model"] = _saved_default_model(_config_path())
+            settings["model"] = _saved_default_model(config)
         request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
     except EmptyRequestError:
         request = None
@@ -439,7 +450,7 @@ def prompt(
         ctx.exit(display_tokens_count_and_cost(request))
     execute_request(
         request,
-        config_path=_config_path(),
+        config=config,
         key_path=_key_path(),
         stream=not no_stream,
         raw=raw,
@@ -521,7 +532,7 @@ def view_template(template):
         click.echo(content, nl=False)
         return
     try:
-        theme = resolve_code_theme(code_block_theme(load_config(_config_path())))
+        theme = resolve_code_theme(code_block_theme(_load_config()))
     except ValueError:
         raise click.ClickException(
             "Template view code theme is unavailable. Set `code_block_theme` to "

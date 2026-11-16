@@ -1,4 +1,5 @@
 import io
+import json
 import sys
 from contextlib import nullcontext
 from itertools import pairwise
@@ -55,9 +56,7 @@ def _use_terminal(
 
 def _execute(*, prompt, **kwargs):
     request = resolve_request(prompt=prompt[0]["content"] if prompt else "Fixture request")
-    return cli_output.execute_request(
-        request, config_path=Path("unused"), key_path=Path("unused"), **kwargs
-    )
+    return cli_output.execute_request(request, config={}, key_path=Path("unused"), **kwargs)
 
 
 def _prepare_generate_response(monkeypatch):
@@ -385,8 +384,6 @@ def test_empty_markdown_response_uses_normal_screen_only(monkeypatch):
 @pytest.mark.parametrize(
     "config_bytes, expected_config, expected_themes",
     [
-        pytest.param(b'{"code_block_theme":', {}, ("monokai", "blue on black"), id="invalid-json"),
-        pytest.param(b'["default"]\n', {}, ("monokai", "blue on black"), id="non-object-json"),
         pytest.param(
             b'{"code_block_theme": "default", "inline_code_theme": "cyan", '
             b'"unrelated": {"keep": true}}\n',
@@ -422,3 +419,58 @@ def test_theme_reads_do_not_create_missing_config(monkeypatch, tmp_path):
     assert cli_output.inline_code_theme(storage.load_config(config_path)) == "blue on black"
     assert not config_path.exists()
     assert not config_path.parent.exists()
+
+
+@pytest.mark.parametrize("source", [b'{"PRIVATE":', b'["PRIVATE"]', b"null", b"\xffPRIVATE"])
+def test_invalid_config_raises_without_printing_or_changing_contents(tmp_path, capsys, source):
+    config_path = tmp_path / "config.json"
+    config_path.write_bytes(source)
+    with pytest.raises(storage.StorageError, match="config.json") as error:
+        storage.load_config(config_path)
+    assert "PRIVATE" not in str(error.value)
+    assert capsys.readouterr() == ("", "")
+    assert config_path.read_bytes() == source
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_cli_preserves_configured_model_and_terminal_colors(monkeypatch, tmp_path, capsys, invalid):
+    config_path = tmp_path / ".config" / "lmt" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config = {
+        "default_model": "4o",
+        "code_block_theme": "alabaster",
+        "inline_code_theme": "#325cc0 on #f0f0f0",
+    }
+    source = b'{"PRIVATE":' if invalid else json.dumps(config).encode()
+    config_path.write_bytes(source)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    monkeypatch.setattr(cli_output, "read_api_key", lambda _: "test-key")
+    output = _use_terminal(monkeypatch, color_system="truecolor")
+    models = []
+    text = 'Inline `fib`.\n\n```python\ndef fib(): return "hello"\n```\n'
+
+    def create(**kwargs):
+        models.append(kwargs["model"])
+        return iter(
+            [SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=text))])]
+        )
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr("openai.OpenAI", lambda **_: nullcontext(client))
+    cli.lmt.main(["Fixture"], standalone_mode=False)
+    rendered = output.buffer.getvalue().decode()
+    assert "hello" in cli.click.unstyle(rendered)
+    assert "\x1b[" in rendered
+    if invalid:
+        assert models == [cli.DEFAULT_MODEL]
+        stderr = capsys.readouterr().err
+        assert stderr.count("Warning:") == 1
+        assert "lmt config path" in stderr
+        assert "PRIVATE" not in stderr
+    else:
+        assert models == ["gpt-4o"]
+        assert "38;2;122;62;157;48;2;240;240;240mdef" in rendered
+        assert "Inline \x1b[38;2;50;92;192;48;2;240;240;240mfib\x1b[0m." in rendered
+        assert capsys.readouterr().err == ""
+    assert config_path.read_bytes() == source

@@ -27,6 +27,8 @@ socket.socket.connect = forbidden
 socket.create_connection = forbidden
 from lmterminal import cli, cli_output
 cli.read_api_key = cli_output.read_api_key = forbidden
+if '--tokens' not in sys.argv:
+    cli.load_config = forbidden
 try:
     cli.lmt.main(prog_name='lmt')
 finally:

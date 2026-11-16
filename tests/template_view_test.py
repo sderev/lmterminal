@@ -138,12 +138,16 @@ def test_unreadable_file_error(monkeypatch, tmp_path):
     assert result.stderr == "Error: Cannot read template `demo`.\n"
 
 
-@pytest.mark.parametrize("theme_name", ["alabaster", "missing-lmt-style"])
-def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, theme_name):
+@pytest.mark.parametrize("theme_name", ["alabaster", "missing-lmt-style", "malformed-config"])
+def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, capsys, theme_name):
     (tmp_path / "demo.yaml").write_text("prompt: '[bold]literal[/bold]'\n", encoding="UTF-8")
     config = tmp_path / ".config" / "lmt" / "config.json"
     config.parent.mkdir(parents=True)
-    config_source = json.dumps({"code_block_theme": theme_name})
+    config_source = (
+        '{"PRIVATE":'
+        if theme_name == "malformed-config"
+        else json.dumps({"code_block_theme": theme_name})
+    )
     config.write_text(config_source, encoding="UTF-8")
     captured = []
     resolve = cli.resolve_code_theme
@@ -160,15 +164,25 @@ def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, theme_name):
     )
     monkeypatch.setattr(cli, "Console", lambda: console)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
-    if theme_name == "alabaster":
+    if theme_name != "missing-lmt-style":
         with cli.lmt.make_context("lmt", []):
             cli.view_template.callback("demo")
-        assert captured[0][0] == "alabaster"
-        assert captured[0][1].get_style_for_token(Keyword).color.triplet == (122, 62, 157)
+        selected = "monokai" if theme_name == "malformed-config" else "alabaster"
+        assert captured[0][0] == selected
+        if selected == "alabaster":
+            assert captured[0][1].get_style_for_token(Keyword).color.triplet == (122, 62, 157)
         rendered = output.getvalue()
-        assert "38;2;0;122;204" in rendered  # YAML key uses the Alabaster Name.Tag color.
+        if selected == "alabaster":
+            assert "38;2;0;122;204" in rendered  # YAML key uses Alabaster Name.Tag.
         assert "[bold]literal[/bold]" in cli.click.unstyle(rendered)
         assert cli.click.unstyle(rendered).splitlines()[0].startswith("prompt:")
+        stderr = capsys.readouterr().err
+        if theme_name == "malformed-config":
+            assert stderr.count("Warning:") == 1
+            assert "lmt config path" in stderr
+            assert "PRIVATE" not in stderr
+        else:
+            assert stderr == ""
     else:
         with (
             pytest.raises(cli.click.ClickException, match="theme is unavailable") as error,
@@ -181,5 +195,6 @@ def test_terminal_theme_and_plain_bypass(monkeypatch, tmp_path, theme_name):
     result = CliRunner().invoke(cli.lmt, ["templates", "view", "demo"])
     assert result.exit_code == 0, result.output
     assert result.stdout == "prompt: '[bold]literal[/bold]'\n"
+    assert result.stderr == ""
     assert captured == []
     assert config.read_text(encoding="UTF-8") == config_source

@@ -11,16 +11,18 @@ class StorageError(ValueError):
 
 def load_config(config_path: Path) -> dict:
     """
-    Reads the config file without creating or changing it.
+    Read configuration without changing it; invalid contents raise StorageError.
     """
     try:
         with open(config_path, "r", encoding="UTF-8") as file:
             config = json.load(file)
-    except (json.decoder.JSONDecodeError, UnicodeError, OSError):
+    except (json.JSONDecodeError, UnicodeError):
+        raise StorageError("config.json must contain valid UTF-8 JSON.") from None
+    except OSError:
         return {}
 
     if not isinstance(config, dict):
-        return {}
+        raise StorageError("config.json must contain a JSON object.")
 
     return config
 

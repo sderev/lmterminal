@@ -15,7 +15,7 @@ from rich.theme import Theme
 from . import gpt_integration
 from .code_themes import resolve_code_theme
 from .estimation import estimate_request
-from .storage import StorageError, load_config, read_api_key
+from .storage import StorageError, read_api_key
 
 _MARKDOWN_REFRESH_INTERVAL = 1 / 20
 
@@ -115,7 +115,7 @@ def inline_code_theme(config):
     return value if isinstance(value, str) else "blue on black"
 
 
-def execute_request(request, *, config_path, key_path, raw=False, stream=True, diagnostics=None):
+def execute_request(request, *, config, key_path, raw=False, stream=True, diagnostics=None):
     console = Console()
     use_live_markdown = (
         stream
@@ -127,7 +127,6 @@ def execute_request(request, *, config_path, key_path, raw=False, stream=True, d
     )
     selected_theme = None
     if use_live_markdown:
-        config = load_config(config_path)
         try:
             selected_theme = resolve_code_theme(code_block_theme(config))
         except ValueError as error:

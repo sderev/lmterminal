@@ -64,6 +64,9 @@ def main():
     )
     parser.add_argument("--saved-model", help="Save a model preference in the temporary config.")
     parser.add_argument(
+        "--config-fixture", choices=("valid", "malformed", "non-object"), default="valid"
+    )
+    parser.add_argument(
         "--forbid-credentials", action="store_true", help="Fail on any key read or client creation."
     )
     options, arguments = parser.parse_known_args()
@@ -102,7 +105,13 @@ def main():
         }
         if options.saved_model is not None:
             config["default_model"] = options.saved_model
-        (directory / "config.json").write_text(json.dumps(config))
+        config_source = json.dumps(config).encode()
+        if options.config_fixture == "malformed":
+            config_source = b'{"default_model": "sol", "PRIVATE": }'
+        elif options.config_fixture == "non-object":
+            config_source = b'["PRIVATE"]'
+        config_path = directory / "config.json"
+        config_path.write_bytes(config_source)
         if options.fixture != "missing-key":
             (directory / "keys.json").write_text('{"openai": "synthetic-key"}\n')
             (directory / "keys.json").chmod(0o600)
@@ -179,6 +188,7 @@ def main():
         try:
             lmt.main(args=arguments, prog_name="lmt")
         finally:
+            assert config_path.read_bytes() == config_source
             if options.fixture == "missing-key":
                 assert not (directory / "keys.json").exists()
 
