@@ -63,6 +63,9 @@ def main():
         "--code-theme", default="alabaster", help="Fixture code_block_theme preference."
     )
     parser.add_argument("--saved-model", help="Save a model preference in the temporary config.")
+    parser.add_argument(
+        "--forbid-credentials", action="store_true", help="Fail on any key read or client creation."
+    )
     options, arguments = parser.parse_known_args()
 
     def forbidden(*args, **kwargs):
@@ -82,7 +85,11 @@ def main():
         import openai
 
         openai.OpenAI = forbidden
+        from lmterminal import cli_output
         from lmterminal.cli import lmt
+
+        if options.forbid_credentials:
+            cli_output.read_api_key = forbidden
 
         directory = Path(home) / ".config/lmt"
         templates = directory / "templates"
@@ -159,6 +166,7 @@ def main():
             chat = SimpleNamespace(completions=SimpleNamespace(create=create))
 
             def __init__(self, *, api_key):
+                assert not options.forbid_credentials, "Client creation is forbidden"
                 assert api_key == "synthetic-key"
 
             def __enter__(self):

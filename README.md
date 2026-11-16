@@ -158,7 +158,10 @@ lmt --no-stream "Say hello"
 ```
 
 In a terminal, run `lmt` without a prompt to enter multiple lines; press Ctrl+D to
-send. `--raw` disables formatting. Streaming to pipes or terminals that cannot
+send. Empty or whitespace-only input fails locally before reading your API key;
+provide prompt text, stdin, `--text`, or a nonblank template task. System instructions
+alone do not count as a prompt. Blank system messages are omitted.
+`--raw` disables formatting. Streaming to pipes or terminals that cannot
 render interactive Markdown produces plain text, including with `--rich`.
 Interactive Markdown shows the first text immediately, then refreshes at most
 20 times per second. A formatted moving tail appears on a temporary alternate
@@ -359,6 +362,7 @@ request = resolve_request(
 `load_template(name, directory)` raises `TemplateError` for name/file/schema
 errors. `resolve_request` accepts a `Template` or `None`, requires a registered
 model, and raises `RequestResolutionError` for invocation/control errors.
+`EmptyRequestError` is its subtype for empty or whitespace-only composed user input.
 `SystemTemplateConflict` covers any explicit `system` with a template, including
 `""` and `None`. Omitted controls inherit; explicit `temperature=None` or
 `reasoning_effort=None` omits that control. `emoji=True` is applied during
@@ -496,6 +500,7 @@ uv run python tests/manual_cli.py --fixture partial-failure --raw 'Hello' > part
 uv run python tests/manual_cli.py --fixture markdown 'Hello'
 uv run python tests/manual_cli.py templates view sparse
 uv run python tests/manual_cli.py --fixture missing-key --raw 'Hello'
+uv run python tests/manual_cli.py --forbid-credentials < /dev/null
 uv run python tests/manual_cli.py --fixture auth 'Hello' 2> auth-error.txt
 uv run python tests/manual_cli.py --fixture long-code 'Hello'
 uv run python tests/manual_cli.py --fixture long-paragraph 'Hello'

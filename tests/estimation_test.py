@@ -59,18 +59,18 @@ def real_encoder(tokenizer_cache):
 def test_real_text_oracles_and_literal_cli(real_encoder):
     request = resolution.resolve_request(model="5-nano", prompt="hello")
     result = estimation.estimate_request(request)
-    assert result.message_tokens == result.input_tokens == 12
+    assert result.message_tokens == result.input_tokens == 8
     assert result.encoding == "o200k_base"
-    assert result.input_cost_usd == Decimal("0.00000060")
+    assert result.input_cost_usd == Decimal("0.00000040")
     named = estimation.estimate_request(
         prepare_request("5-nano", [{"role": "user", "content": "hello", "name": "Bob"}])
     )
     assert named.input_tokens == 10  # 3 framing + role/content/name + 1 name + 3 priming
     output = CliRunner().invoke(cli.lmt, ["--tokens", "-m", "5-nano"], input="<|endoftext|>")
     assert output.exit_code == 0, output.output
-    assert "Estimated input tokens: ~18" in output.output
+    assert "Estimated input tokens: ~14" in output.output
     assert "Standard uncached input" in output.output
-    assert "USD 0.0000009" in output.output
+    assert "USD 0.0000007" in output.output
     assert "Cache reads and writes are excluded" in output.output
     assert "lower or higher" in output.output
 

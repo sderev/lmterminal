@@ -10,7 +10,12 @@ from click.testing import CliRunner
 
 from lmterminal import cli, cli_output, templates
 from lmterminal.request_options import DEFAULT_MODEL
-from lmterminal.resolution import RequestResolutionError, SystemTemplateConflict, resolve_request
+from lmterminal.resolution import (
+    EmptyRequestError,
+    RequestResolutionError,
+    SystemTemplateConflict,
+    resolve_request,
+)
 from lmterminal.templates import Template, TemplateError, load_template
 
 
@@ -61,6 +66,7 @@ def test_cli_library_exact_messages(monkeypatch, tmp_path, name, task, content, 
 
 def test_scalar_precedence_and_options_replacement():
     template = Template(
+        prompt="Task",
         model="4o",
         temperature=0.7,
         reasoning_effort="none",
@@ -83,10 +89,13 @@ def test_scalar_precedence_and_options_replacement():
         request_options={"metadata": {"invocation": "yes"}},
     )
     assert explicit.controls == {"metadata": {"invocation": "yes"}, "max_completion_tokens": 100}
-    assert resolve_request().controls == {"reasoning_effort": "none", "temperature": 1}
-    assert resolve_request(model=DEFAULT_MODEL).controls == {}
-    assert resolve_request(reasoning_effort=None).controls == {}
-    assert resolve_request(template=Template(model="gpt-5-nano"), model="4o").model == "gpt-4o"
+    assert resolve_request(prompt="Task").controls == {"reasoning_effort": "none", "temperature": 1}
+    assert resolve_request(prompt="Task", model=DEFAULT_MODEL).controls == {}
+    assert resolve_request(prompt="Task", reasoning_effort=None).controls == {}
+    assert (
+        resolve_request(template=Template(model="gpt-5-nano", prompt="Task"), model="4o").model
+        == "gpt-4o"
+    )
 
 
 @pytest.mark.parametrize(
@@ -129,9 +138,11 @@ def test_explicit_none_temperature_overrides_stored_incompatible_value():
     with pytest.raises(RequestResolutionError, match="Temperature is not supported"):
         resolve_request(template=template)
     assert resolve_request(template=template, temperature=None).controls == {}
-    assert resolve_request(temperature=None).controls == {"reasoning_effort": "none"}
+    assert resolve_request(prompt="Task", temperature=None).controls == {"reasoning_effort": "none"}
     assert (
-        resolve_request(template=Template(model="4o", temperature=0.7), temperature=None).controls
+        resolve_request(
+            template=Template(model="4o", temperature=0.7, prompt="Task"), temperature=None
+        ).controls
         == {}
     )
 
@@ -153,6 +164,31 @@ def test_stored_content_and_empty_components_preserve_whitespace():
     assert request.messages[-1]["content"] == " Context\n\n\n Body \n___\nTask "
     assert resolve_request(template=Template(prompt="Task ")).messages[-1]["content"] == "Task "
     assert resolve_request(text=" Body\n").messages[-1]["content"] == " Body\n"
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {"system": "Only system instructions", "emoji": True},
+        {"emoji": True},
+        {"prompt": " \t", "text": "\n "},
+        {"template": Template(prompt=" \n", text="\t", system="System")},
+    ],
+)
+def test_composed_request_requires_nonblank_user_input(inputs):
+    with pytest.raises(EmptyRequestError, match="Prompt is empty"):
+        resolve_request(**inputs)
+
+
+@pytest.mark.parametrize("system", [None, "", " \t\n", " System \n"])
+def test_blank_system_is_omitted_without_trimming_meaningful_text(system):
+    request = resolve_request(system=system, text=" Body \n")
+    expected = [{"role": "user", "content": " Body \n"}]
+    if system and system.strip():
+        expected.insert(0, {"role": "system", "content": system})
+    assert request.messages == expected
+    assert resolve_request(prompt="Task").messages == [{"role": "user", "content": "Task"}]
 
 
 @pytest.mark.parametrize("system", ["", None, "Override"])

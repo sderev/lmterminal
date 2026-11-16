@@ -128,6 +128,32 @@ def test_no_arguments_reads_terminal_input(no_provider_or_download, monkeypatch)
     assert "press Ctrl+D" in stdout.getvalue()
 
 
+@pytest.mark.parametrize(
+    "args,stdin",
+    [
+        ([], ""),
+        ([], " \t\n"),
+        (["--tokens"], ""),
+        (["--system", "System", "--emoji"], ""),
+        (["--text", " \n", " \t"], ""),
+    ],
+)
+def test_empty_prompt_fails_before_credentials_or_execution(
+    no_provider_or_download, monkeypatch, args, stdin
+):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Empty input must fail before execution or estimation")
+
+    monkeypatch.setattr(cli, "execute_request", forbidden)
+    monkeypatch.setattr(cli, "display_tokens_count_and_cost", forbidden)
+    result = CliRunner().invoke(cli.lmt, args, input=stdin)
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    assert (
+        "Prompt is empty. Supply prompt text, --text, stdin, or a template task." in result.stderr
+    )
+
+
 def test_prompt_help_explains_reasoning_default_and_debug_disclosure():
     result = CliRunner().invoke(cli.lmt, ["prompt", "--help"])
     assert result.exit_code == 0
@@ -245,7 +271,6 @@ def test_piped_prompt_preserves_stream_choice(monkeypatch, tmp_path, args, expec
     assert calls == [
         {
             "messages": [
-                {"role": "system", "content": ""},
                 {"role": "user", "content": expected_prompt},
             ],
             "model": DEFAULT_MODEL,
@@ -683,21 +708,18 @@ def test_unverified_cli_and_library_controls_reach_provider(monkeypatch, provide
             )[0]
             == "pong"
         )
-    assert (
-        calls
-        == [
-            dict(
-                messages=messages,
-                model="gpt-5.6-sol",
-                n=1,
-                stream=False,
-                temperature=1,
-                reasoning_effort="none",
-                **options,
-            )
-        ]
-        * 2
+    expected = dict(
+        model="gpt-5.6-sol",
+        n=1,
+        stream=False,
+        temperature=1,
+        reasoning_effort="none",
+        **options,
     )
+    assert calls == [
+        dict(messages=[{"role": "user", "content": "hello"}], **expected),
+        dict(messages=messages, **expected),
+    ]
 
 
 @pytest.mark.parametrize("fails", [False, True])

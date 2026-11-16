@@ -54,7 +54,7 @@ def _use_terminal(
 
 
 def _execute(*, prompt, **kwargs):
-    request = resolve_request(prompt=prompt[0]["content"] if prompt else "")
+    request = resolve_request(prompt=prompt[0]["content"] if prompt else "Fixture request")
     return cli_output.execute_request(
         request, config_path=Path("unused"), key_path=Path("unused"), **kwargs
     )

@@ -19,6 +19,10 @@ class SystemTemplateConflict(RequestResolutionError):
     """A supplied system argument cannot accompany a template."""
 
 
+class EmptyRequestError(RequestResolutionError):
+    """The composed request has no nonblank user content."""
+
+
 def _join_inputs(stored, supplied):
     return stored + "\n\n" + supplied if stored and supplied else stored or supplied
 
@@ -81,9 +85,16 @@ def resolve_request(
         validate_request_options(supplied_options)
         options = {**stored.request_options, **(supplied_options or {})}
         messages = composed_messages(model, add_emoji(system) if emoji else system, user)
-        return prepare_request(model, messages, temperature, reasoning_effort, options)
+        request = prepare_request(model, messages, temperature, reasoning_effort, options)
     except (TypeError, ValueError) as error:
         raise RequestResolutionError(str(error)) from error
+    # Separators and system instructions do not count as user content. Validate
+    # controls first so the CLI can defer only emptiness until after reading stdin.
+    if not (task.strip() or content.strip()):
+        raise EmptyRequestError(
+            "Prompt is empty. Supply prompt text, --text, stdin, or a template task."
+        )
+    return request
 
 
 def add_emoji(system: str) -> str:

@@ -707,4 +707,7 @@ def composed_messages(selected_model, system, user):
     """
     if isinstance(selected_model, str) and "o1" in selected_model:
         return [{"role": "user", "content": user}]
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    messages = [{"role": "user", "content": user}]
+    if system.strip():
+        messages.insert(0, {"role": "system", "content": system})
+    return messages

@@ -21,7 +21,7 @@ from .code_themes import resolve_code_theme
 from .diagnostics import RequestDiagnostics
 from .model_registry import REASONING_EFFORTS, get_valid_models, resolve_model_name
 from .request_options import DEFAULT_MODEL, UNSET, validate_request_options
-from .resolution import RequestResolutionError, resolve_request
+from .resolution import EmptyRequestError, RequestResolutionError, resolve_request
 from .storage import StorageError, load_config, read_api_key, write_key
 from .template_editor import edit_template_file
 from .template_view import serialize_saved_template
@@ -387,6 +387,8 @@ def prompt(
         if settings["model"] is UNSET and (stored is None or stored.model is None):
             settings["model"] = _saved_default_model(_config_path())
         request = resolve_request(template=stored, prompt=prompt_input, text=text or "", **settings)
+    except EmptyRequestError:
+        request = None
     except (TemplateError, RequestResolutionError) as error:
         raise click.UsageError(str(error)) from error
 
@@ -396,7 +398,7 @@ def prompt(
         if piped and text is not None:
             raise click.UsageError("Cannot combine `--text` with nonempty stdin.")
         content = piped if text is None else text
-    elif not request.messages[-1]["content"]:
+    elif request is None:
         instructions = (
             "Write or paste your message below. Use <Enter> for new lines."
             "\nTo send your message, press Ctrl+D."
